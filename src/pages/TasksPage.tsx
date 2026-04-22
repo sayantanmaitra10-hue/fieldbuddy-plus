@@ -39,6 +39,16 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 const tabs = ["Pending", "In Progress", "Completed"] as const;
@@ -83,6 +93,8 @@ const TasksPage = () => {
   const [active, setActive] = useState<typeof tabs[number]>("In Progress");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pending, setPending] = useState<TaskForm | null>(null);
   const { toast } = useToast();
 
   const form = useForm<TaskForm>({
@@ -105,17 +117,34 @@ const TasksPage = () => {
   );
 
   const onSubmit = (data: TaskForm) => {
-    const assignee = employees.find((e) => e.id === data.assigneeId);
-    const [h, m] = data.deadlineTime.split(":").map(Number);
-    const dl = new Date(data.deadlineDate);
+    setPending(data);
+    setConfirmOpen(true);
+  };
+
+  const confirmAssign = () => {
+    if (!pending) return;
+    const assignee = employees.find((e) => e.id === pending.assigneeId);
+    const [h, m] = pending.deadlineTime.split(":").map(Number);
+    const dl = new Date(pending.deadlineDate);
     dl.setHours(h, m, 0, 0);
     toast({
       title: "Task assigned",
-      description: `"${data.title}" → ${assignee?.name} · due ${format(dl, "MMM d, HH:mm")}`,
+      description: `"${pending.title}" → ${assignee?.name} · due ${format(dl, "MMM d, HH:mm")}`,
     });
     form.reset();
+    setPending(null);
+    setConfirmOpen(false);
     setOpen(false);
   };
+
+  const pendingAssignee = pending ? employees.find((e) => e.id === pending.assigneeId) : null;
+  const pendingDeadline = (() => {
+    if (!pending) return null;
+    const [h, m] = pending.deadlineTime.split(":").map(Number);
+    const dl = new Date(pending.deadlineDate);
+    dl.setHours(h, m, 0, 0);
+    return dl;
+  })();
 
   const errorCount = Object.keys(form.formState.errors).length;
 
@@ -327,6 +356,55 @@ const TasksPage = () => {
             </Dialog>
           )}
         </div>
+
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display">Confirm task assignment</AlertDialogTitle>
+              <AlertDialogDescription>
+                Review the details below before assigning. The assignee will be notified.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            {pending && (
+              <div className="rounded-lg border bg-muted/40 divide-y text-sm">
+                <div className="flex justify-between gap-4 px-4 py-2.5">
+                  <span className="text-muted-foreground">Title</span>
+                  <span className="font-medium text-right">{pending.title}</span>
+                </div>
+                <div className="flex justify-between gap-4 px-4 py-2.5">
+                  <span className="text-muted-foreground">Assignee</span>
+                  <span className="font-medium text-right flex items-center gap-2">
+                    <span className="size-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold inline-flex items-center justify-center">
+                      {pendingAssignee?.avatar}
+                    </span>
+                    {pendingAssignee?.name}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 px-4 py-2.5">
+                  <span className="text-muted-foreground">Deadline</span>
+                  <span className="font-medium text-right">
+                    {pendingDeadline ? format(pendingDeadline, "EEE, MMM d · HH:mm") : ""}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4 px-4 py-2.5">
+                  <span className="text-muted-foreground">Priority</span>
+                  <span className="font-medium text-right capitalize">{pending.priority}</span>
+                </div>
+              </div>
+            )}
+
+            <AlertDialogFooter>
+              <AlertDialogCancel>Go back & edit</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmAssign}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Confirm & assign
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
           {tabs.map((t) => (
