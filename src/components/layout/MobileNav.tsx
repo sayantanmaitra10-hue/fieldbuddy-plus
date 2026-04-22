@@ -3,12 +3,13 @@ import { useRole } from "@/context/RoleContext";
 import { MapPin, ListChecks, MessageSquare, LayoutDashboard, Users, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const fieldNav = [
+type NavItem = { to: string; label: string; icon: typeof MapPin; end?: boolean };
+const fieldNav: NavItem[] = [
   { to: "/app", label: "Today", icon: MapPin, end: true },
   { to: "/app/tasks", label: "Tasks", icon: ListChecks },
   { to: "/app/chat", label: "Chat", icon: MessageSquare },
 ];
-const managerNav = [
+const managerNav: NavItem[] = [
   { to: "/app/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/app/team", label: "Team", icon: Users },
   { to: "/app/tasks", label: "Tasks", icon: ListChecks },
