@@ -150,6 +150,10 @@ const ChatPage = () => {
     setActiveId(id);
     setShowListMobile(false);
     setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, unread: 0 } : t)));
+    if (searchParams.get("thread") && searchParams.get("thread") !== id) {
+      searchParams.delete("thread");
+      setSearchParams(searchParams, { replace: true });
+    }
   };
 
   const send = (text: string, media?: Message["media"]) => {
