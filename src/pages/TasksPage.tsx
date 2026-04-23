@@ -5,8 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Topbar } from "@/components/layout/Topbar";
 import { TaskCard } from "@/components/TaskCard";
-import { tasks, employees } from "@/lib/mock-data";
+import { tasks as seedTasks, employees, type Task } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
+import { useSync } from "@/context/SyncContext";
 import { Plus, Search, CalendarIcon, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,11 +91,14 @@ type TaskForm = z.infer<typeof taskSchema>;
 
 const TasksPage = () => {
   const { role } = useRole();
+  const { online, enqueue, queue } = useSync();
   const [active, setActive] = useState<typeof tabs[number]>("In Progress");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState<TaskForm | null>(null);
+  const [localTasks, setLocalTasks] = useState<Task[]>(seedTasks);
+  const [pendingSyncIds, setPendingSyncIds] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   const form = useForm<TaskForm>({
@@ -109,7 +113,7 @@ const TasksPage = () => {
     mode: "onTouched",
   });
 
-  const visible = (role === "field" ? tasks.filter((t) => t.assigneeId === "e1") : tasks).filter(
+  const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === "e1") : localTasks).filter(
     (t) => {
       const map = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
       return t.status === map[active] && t.title.toLowerCase().includes(q.toLowerCase());
@@ -127,10 +131,35 @@ const TasksPage = () => {
     const [h, m] = pending.deadlineTime.split(":").map(Number);
     const dl = new Date(pending.deadlineDate);
     dl.setHours(h, m, 0, 0);
-    toast({
-      title: "Task assigned",
-      description: `"${pending.title}" → ${assignee?.name} · due ${format(dl, "MMM d, HH:mm")}`,
-    });
+
+    const newTask: Task = {
+      id: `t-${Date.now()}`,
+      title: pending.title,
+      description: pending.description ?? "",
+      status: "pending",
+      priority: pending.priority,
+      assigneeId: pending.assigneeId,
+      assignee: assignee?.name ?? "—",
+      location: assignee?.location ?? "—",
+      deadline: dl.toISOString(),
+      proof: [],
+      messages: [],
+    };
+    setLocalTasks((prev) => [newTask, ...prev]);
+
+    if (!online) {
+      const qid = enqueue({ kind: "task", label: `New task: ${pending.title}` });
+      setPendingSyncIds((prev) => ({ ...prev, [newTask.id]: qid }));
+      toast({
+        title: "Task queued (offline)",
+        description: `"${pending.title}" → ${assignee?.name} · will sync when online`,
+      });
+    } else {
+      toast({
+        title: "Task assigned",
+        description: `"${pending.title}" → ${assignee?.name} · due ${format(dl, "MMM d, HH:mm")}`,
+      });
+    }
     form.reset();
     setPending(null);
     setConfirmOpen(false);
@@ -145,6 +174,13 @@ const TasksPage = () => {
     dl.setHours(h, m, 0, 0);
     return dl;
   })();
+
+  // Resolve pending-sync ids: once they leave the queue, drop the marker
+  const isStillPending = (taskId: string) => {
+    const qid = pendingSyncIds[taskId];
+    return !!qid && queue.some((q) => q.id === qid);
+  };
+
 
   const errorCount = Object.keys(form.formState.errors).length;
 
