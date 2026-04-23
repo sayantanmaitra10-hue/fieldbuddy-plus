@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { tasks as seedTasks, employees } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
@@ -99,11 +100,16 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
 
 const ChatPage = () => {
   const { role } = useRole();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedThread = searchParams.get("thread");
+
   const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role));
-  const [activeId, setActiveId] = useState<string>(() => buildInitialThreads(role)[0]?.id ?? "");
+  const [activeId, setActiveId] = useState<string>(
+    () => requestedThread ?? buildInitialThreads(role)[0]?.id ?? "",
+  );
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
-  const [showListMobile, setShowListMobile] = useState(true);
+  const [showListMobile, setShowListMobile] = useState(!requestedThread);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -111,8 +117,19 @@ const ChatPage = () => {
   useEffect(() => {
     const next = buildInitialThreads(role);
     setThreads(next);
-    setActiveId(next[0]?.id ?? "");
+    setActiveId((prev) => (next.find((t) => t.id === prev) ? prev : next[0]?.id ?? ""));
   }, [role]);
+
+  // React to ?thread= changes (e.g. navigated from Task detail)
+  useEffect(() => {
+    if (!requestedThread) return;
+    setThreads((prev) => {
+      if (!prev.find((t) => t.id === requestedThread)) return prev;
+      return prev.map((t) => (t.id === requestedThread ? { ...t, unread: 0 } : t));
+    });
+    setActiveId(requestedThread);
+    setShowListMobile(false);
+  }, [requestedThread]);
 
   const active = threads.find((t) => t.id === activeId);
 
