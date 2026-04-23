@@ -5,16 +5,19 @@ import { tasks as initial } from "@/lib/mock-data";
 import { StatusPill } from "@/components/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MapPin, Clock, Camera, Send, CheckCircle2, Play, Image as ImageIcon, MessageSquare } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Camera, Send, CheckCircle2, Play, Image as ImageIcon, MessageSquare, CloudOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSync } from "@/context/SyncContext";
 
 const TaskDetail = () => {
   const { id } = useParams();
   const nav = useNavigate();
   const { toast } = useToast();
+  const { online, enqueue } = useSync();
   const t = initial.find((x) => x.id === id);
   const [status, setStatus] = useState(t?.status ?? "pending");
   const [hasProof, setHasProof] = useState((t?.proof?.length ?? 0) > 0);
+  const [proofPending, setProofPending] = useState(false);
   const [msg, setMsg] = useState("");
   const [thread, setThread] = useState(t?.messages ?? []);
 
@@ -23,6 +26,7 @@ const TaskDetail = () => {
   const send = () => {
     if (!msg.trim()) return;
     setThread([...thread, { id: String(Date.now()), from: "You", text: msg, time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) }]);
+    if (!online) enqueue({ kind: "message", label: `Message on ${t.title}` });
     setMsg("");
   };
 
@@ -32,7 +36,12 @@ const TaskDetail = () => {
       return;
     }
     setStatus("completed");
-    toast({ title: "Task completed", description: "Manager notified." });
+    if (!online) {
+      enqueue({ kind: "status", label: `Completed: ${t.title}` });
+      toast({ title: "Completed (offline)", description: "Will sync when you reconnect" });
+    } else {
+      toast({ title: "Task completed", description: "Manager notified." });
+    }
   };
 
   return (
@@ -60,9 +69,13 @@ const TaskDetail = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 mt-5">
+          <div className="flex flex-wrap gap-2 mt-5 items-center">
             {status === "pending" && (
-              <Button onClick={() => { setStatus("in_progress"); toast({ title: "Task started" }); }} className="gap-1.5">
+              <Button onClick={() => {
+                setStatus("in_progress");
+                if (!online) enqueue({ kind: "status", label: `Started: ${t.title}` });
+                toast({ title: online ? "Task started" : "Task started (offline)" });
+              }} className="gap-1.5">
                 <Play className="size-4" /> Start Task
               </Button>
             )}
@@ -76,6 +89,11 @@ const TaskDetail = () => {
                 <CheckCircle2 className="size-4" /> Completed · proof attached
               </div>
             )}
+            {!online && status !== "completed" && (
+              <span className="inline-flex items-center gap-1 text-xs text-warning-foreground/80">
+                <CloudOff className="size-3" /> Will sync when online
+              </span>
+            )}
           </div>
         </div>
 
@@ -86,16 +104,32 @@ const TaskDetail = () => {
           </div>
           {hasProof ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="aspect-square rounded-lg gradient-surface border border-border grid place-items-center">
+              <div className="aspect-square rounded-lg gradient-surface border border-border grid place-items-center relative">
                 <ImageIcon className="size-8 text-muted-foreground" />
+                {proofPending && (
+                  <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/15 text-warning-foreground text-[9px] font-semibold uppercase tracking-wider">
+                    <CloudOff className="size-2.5" /> Pending
+                  </span>
+                )}
               </div>
               <div className="text-xs text-muted-foreground sm:col-span-2 self-end">
-                Captured 2026-04-21 17:45 · 19.1197° N, 72.9051° E
+                {proofPending
+                  ? "Captured offline · will upload when reconnected"
+                  : "Captured 2026-04-21 17:45 · 19.1197° N, 72.9051° E"}
               </div>
             </div>
           ) : (
             <button
-              onClick={() => { setHasProof(true); toast({ title: "Proof uploaded", description: "Geo-tagged · 19.0596° N, 72.8295° E" }); }}
+              onClick={() => {
+                setHasProof(true);
+                if (!online) {
+                  setProofPending(true);
+                  enqueue({ kind: "proof", label: `Proof for ${t.title}` });
+                  toast({ title: "Proof captured (offline)", description: "Will upload when you reconnect" });
+                } else {
+                  toast({ title: "Proof uploaded", description: "Geo-tagged · 19.0596° N, 72.8295° E" });
+                }
+              }}
               className="w-full py-10 border-2 border-dashed border-border rounded-xl hover:border-primary hover:bg-muted/40 transition-colors flex flex-col items-center gap-2 text-muted-foreground"
             >
               <Camera className="size-6" />

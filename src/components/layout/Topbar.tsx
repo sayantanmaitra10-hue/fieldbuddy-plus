@@ -1,11 +1,12 @@
 import { useRole } from "@/context/RoleContext";
+import { useSync } from "@/context/SyncContext";
 import { Wifi, WifiOff, Bell } from "lucide-react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export const Topbar = ({ title, subtitle }: { title: string; subtitle?: string }) => {
   const { role, setRole } = useRole();
-  const [online, setOnline] = useState(true);
+  const { online, setOnline, queue } = useSync();
+
   return (
     <header className="sticky top-0 z-30 bg-background/85 backdrop-blur border-b border-border">
       <div className="flex items-center justify-between gap-3 px-4 lg:px-8 py-3 lg:py-4">
@@ -21,7 +22,7 @@ export const Topbar = ({ title, subtitle }: { title: string; subtitle?: string }
             title="Toggle connection (demo)"
           >
             {online ? <Wifi className="size-3.5 text-success" /> : <WifiOff className="size-3.5 text-warning" />}
-            {online ? "Online" : "Offline · 3 queued"}
+            {online ? "Online" : `Offline · ${queue.length} queued`}
           </button>
 
           <div className="lg:hidden flex items-center gap-1 p-0.5 bg-muted rounded-md text-xs">

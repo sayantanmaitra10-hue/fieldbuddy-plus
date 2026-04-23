@@ -2,12 +2,18 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSync } from "@/context/SyncContext";
+import { PendingSyncBadge } from "./PendingSyncBadge";
 
 export const PunchInCard = () => {
   const [state, setState] = useState<"idle" | "locating" | "checked">("idle");
   const [location, setLocation] = useState("Linking Road, Bandra W");
   const [time, setTime] = useState("");
+  const [queueId, setQueueId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { online, enqueue, queue } = useSync();
+
+  const isPending = queueId !== null && queue.some((q) => q.id === queueId);
 
   const handlePunch = () => {
     if (state === "checked") return;
@@ -17,7 +23,13 @@ export const PunchInCard = () => {
       setTime(t.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
       setLocation("19.0596° N, 72.8295° E · Bandra W");
       setState("checked");
-      toast({ title: "Checked in", description: "Inside geo-fence · Marked Valid" });
+      if (!online) {
+        const id = enqueue({ kind: "punch", label: "Punch-in @ Bandra W" });
+        setQueueId(id);
+        toast({ title: "Checked in (offline)", description: "Will sync when you reconnect" });
+      } else {
+        toast({ title: "Checked in", description: "Inside geo-fence · Marked Valid" });
+      }
     }, 1400);
   };
 
@@ -26,8 +38,11 @@ export const PunchInCard = () => {
       <div className="absolute inset-0 grid-dots opacity-30" />
       <div className="relative flex flex-col lg:flex-row lg:items-center gap-6">
         <div className="flex-1 min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.2em] text-primary-foreground/60 mb-2">
-            {state === "checked" ? "Active shift" : "Start your day"}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-primary-foreground/60">
+              {state === "checked" ? "Active shift" : "Start your day"}
+            </div>
+            {isPending && <PendingSyncBadge />}
           </div>
           <h2 className="font-display text-2xl lg:text-3xl font-semibold tracking-tight mb-3">
             {state === "checked" ? `Checked in · ${time}` : "Ready to punch in?"}
