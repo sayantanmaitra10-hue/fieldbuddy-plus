@@ -399,8 +399,11 @@ const ChatPage = () => {
                           )}
                         >
                           {m.time}
-                          {m.mine && <CheckCheck className="size-3" />}
-                        </div>
+                          {m.mine && (m.pendingSyncId && queue.some((q) => q.id === m.pendingSyncId) ? (
+                            <Clock className="size-3" />
+                          ) : (
+                            m.mine && <CheckCheck className="size-3" />
+                          ))}
                       </div>
                     </div>
                   ))}
