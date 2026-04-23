@@ -453,7 +453,7 @@ const TasksPage = () => {
             >
               {t}{" "}
               <span className="opacity-60 ml-1">
-                {(role === "field" ? tasks.filter((x) => x.assigneeId === "e1") : tasks).filter((x) => {
+                {(role === "field" ? localTasks.filter((x) => x.assigneeId === "e1") : localTasks).filter((x) => {
                   const m = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
                   return x.status === m[t];
                 }).length}
@@ -467,7 +467,7 @@ const TasksPage = () => {
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {visible.map((t) => (
-              <TaskCard key={t.id} task={t} />
+              <TaskCard key={t.id} task={t} pendingSync={isStillPending(t.id)} />
             ))}
           </div>
         )}
