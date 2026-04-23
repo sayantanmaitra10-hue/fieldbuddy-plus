@@ -5,7 +5,7 @@ import { tasks as initial } from "@/lib/mock-data";
 import { StatusPill } from "@/components/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, MapPin, Clock, Camera, Send, CheckCircle2, Play, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, MapPin, Clock, Camera, Send, CheckCircle2, Play, Image as ImageIcon, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const TaskDetail = () => {
@@ -106,9 +106,19 @@ const TaskDetail = () => {
         </div>
 
         <div className="bg-card border border-border rounded-2xl shadow-card overflow-hidden">
-          <div className="px-5 lg:px-7 pt-5 pb-3 border-b border-border">
-            <h2 className="font-display font-semibold">Task chat</h2>
-            <p className="text-xs text-muted-foreground">All messages tied to this task</p>
+          <div className="px-5 lg:px-7 pt-5 pb-3 border-b border-border flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display font-semibold">Task chat</h2>
+              <p className="text-xs text-muted-foreground">All messages tied to this task</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => nav(`/app/chat?thread=task-${t.id}`)}
+              className="gap-1.5 shrink-0"
+            >
+              <MessageSquare className="size-3.5" /> Open in Messages
+            </Button>
           </div>
           <div className="p-5 lg:p-7 space-y-3 max-h-72 overflow-y-auto">
             {thread.length === 0 && <div className="text-sm text-muted-foreground text-center py-6">No messages yet.</div>}
