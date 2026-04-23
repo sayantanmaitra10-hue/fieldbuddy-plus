@@ -17,7 +17,9 @@ import {
   Search,
   ArrowLeft,
   CheckCheck,
+  Clock,
 } from "lucide-react";
+import { useSync } from "@/context/SyncContext";
 
 type Message = {
   id: string;
@@ -26,6 +28,7 @@ type Message = {
   time: string;
   media?: { name: string; kind: "image" | "file" };
   mine?: boolean;
+  pendingSyncId?: string;
 };
 
 type Thread = {
@@ -100,6 +103,7 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
 
 const ChatPage = () => {
   const { role } = useRole();
+  const { online, enqueue, queue } = useSync();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedThread = searchParams.get("thread");
 
@@ -159,6 +163,9 @@ const ChatPage = () => {
   const send = (text: string, media?: Message["media"]) => {
     if (!text.trim() && !media) return;
     if (!active) return;
+    const pendingSyncId = !online
+      ? enqueue({ kind: "message", label: `Message in ${active.title}` })
+      : undefined;
     const msg: Message = {
       id: `m-${Date.now()}`,
       from: "You",
@@ -166,13 +173,14 @@ const ChatPage = () => {
       time: nowTime(),
       media,
       mine: true,
+      pendingSyncId,
     };
     setThreads((prev) =>
       prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, msg] } : t)),
     );
     setDraft("");
-    // simulate teammate auto-reply on channels
-    if (active.kind === "channel") {
+    // simulate teammate auto-reply on channels (only when online)
+    if (active.kind === "channel" && online) {
       setTimeout(() => {
         const reply: Message = {
           id: `m-${Date.now()}-r`,
