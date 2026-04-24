@@ -118,6 +118,9 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
 const ChatPage = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
+  const { addTask } = useTasks();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedThread = searchParams.get("thread");
 
@@ -128,8 +131,15 @@ const ChatPage = () => {
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [showListMobile, setShowListMobile] = useState(!requestedThread);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDraft, setPreviewDraft] = useState<SmartTaskDraft | null>(null);
+  const [previewSourceMsgId, setPreviewSourceMsgId] = useState<string | null>(null);
+  const [chipDismissed, setChipDismissed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isManager = role === "manager" || role === "admin";
+  const draftIntent = useMemo(() => detectIntent(draft), [draft]);
 
   // Reset threads when role flips
   useEffect(() => {
@@ -180,6 +190,7 @@ const ChatPage = () => {
     const pendingSyncId = !online
       ? enqueue({ kind: "message", label: `Message in ${active.title}` })
       : undefined;
+    const intent = isManager ? detectIntent(text) : { isTask: false, cleanedTitle: "" };
     const msg: Message = {
       id: `m-${Date.now()}`,
       from: "You",
@@ -188,11 +199,15 @@ const ChatPage = () => {
       media,
       mine: true,
       pendingSyncId,
+      intent: intent.isTask && intent.keyword
+        ? { keyword: intent.keyword, cleanedTitle: intent.cleanedTitle }
+        : undefined,
     };
     setThreads((prev) =>
       prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, msg] } : t)),
     );
     setDraft("");
+    setChipDismissed(false);
     // simulate teammate auto-reply on channels (only when online)
     if (active.kind === "channel" && online) {
       setTimeout(() => {
@@ -207,6 +222,91 @@ const ChatPage = () => {
         );
       }, 1200);
     }
+  };
+
+  const defaultAssigneeIdFor = (thread?: Thread): string => {
+    if (!thread) return "e1";
+    if (thread.kind === "task") {
+      const taskId = thread.id.replace(/^task-/, "");
+      const t = seedTasks.find((x) => x.id === taskId);
+      if (t) return t.assigneeId;
+    }
+    // channel → first field employee
+    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
+    return first?.id ?? "e1";
+  };
+
+  const openConvert = (sourceText: string, keyword: string | undefined, cleanedTitle: string, sourceMsgId: string | null) => {
+    setPreviewDraft({
+      title: cleanedTitle || sourceText,
+      assigneeId: defaultAssigneeIdFor(active),
+      hours: defaultHoursFor(keyword as any),
+      priority: "medium",
+      keyword: keyword as any,
+      sourceMessage: sourceText,
+    });
+    setPreviewSourceMsgId(sourceMsgId);
+    setPreviewOpen(true);
+  };
+
+  const handleConfirmTask = (d: SmartTaskDraft) => {
+    if (!active) return;
+    const deadline = new Date(Date.now() + d.hours * 60 * 60 * 1000).toISOString();
+    const newTask = addTask({
+      title: d.title,
+      assigneeId: d.assigneeId,
+      deadline,
+      priority: d.priority,
+      source: "chat",
+      sourceMessageId: previewSourceMsgId ?? undefined,
+      sourceThreadId: active.id,
+      keyword: d.keyword,
+    });
+    // mark source message as converted
+    if (previewSourceMsgId) {
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === active.id
+            ? {
+                ...t,
+                messages: t.messages.map((m) =>
+                  m.id === previewSourceMsgId ? { ...m, converted: true, taskId: newTask.id } : m,
+                ),
+              }
+            : t,
+        ),
+      );
+    }
+    // append system message
+    const systemMsg: Message = {
+      id: `m-sys-${Date.now()}`,
+      from: "System",
+      text: `📋 Task created → ${newTask.title} · due in ${d.hours}h`,
+      time: nowTime(),
+      system: true,
+      taskId: newTask.id,
+    };
+    setThreads((prev) =>
+      prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, systemMsg] } : t)),
+    );
+    setPreviewOpen(false);
+    setPreviewDraft(null);
+    setPreviewSourceMsgId(null);
+    toast({ title: "Task created", description: `${newTask.title} → ${newTask.assignee}` });
+  };
+
+  const dismissMessage = (msgId: string) => {
+    if (!active) return;
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === active.id
+          ? {
+              ...t,
+              messages: t.messages.map((m) => (m.id === msgId ? { ...m, dismissed: true } : m)),
+            }
+          : t,
+      ),
+    );
   };
 
   const onAttach = (kind: "image" | "file") => {
