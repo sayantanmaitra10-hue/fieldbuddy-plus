@@ -5,9 +5,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Topbar } from "@/components/layout/Topbar";
 import { TaskCard } from "@/components/TaskCard";
-import { tasks as seedTasks, employees, type Task } from "@/lib/mock-data";
+import { employees, type Task } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
 import { useSync } from "@/context/SyncContext";
+import { useTasks } from "@/context/TasksContext";
 import { Plus, Search, CalendarIcon, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,12 +93,12 @@ type TaskForm = z.infer<typeof taskSchema>;
 const TasksPage = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
+  const { tasks: localTasks, addTask } = useTasks();
   const [active, setActive] = useState<typeof tabs[number]>("In Progress");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState<TaskForm | null>(null);
-  const [localTasks, setLocalTasks] = useState<Task[]>(seedTasks);
   const [pendingSyncIds, setPendingSyncIds] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
@@ -132,20 +133,14 @@ const TasksPage = () => {
     const dl = new Date(pending.deadlineDate);
     dl.setHours(h, m, 0, 0);
 
-    const newTask: Task = {
-      id: `t-${Date.now()}`,
+    const newTask = addTask({
       title: pending.title,
       description: pending.description ?? "",
-      status: "pending",
-      priority: pending.priority,
       assigneeId: pending.assigneeId,
-      assignee: assignee?.name ?? "—",
-      location: assignee?.location ?? "—",
       deadline: dl.toISOString(),
-      proof: [],
-      messages: [],
-    };
-    setLocalTasks((prev) => [newTask, ...prev]);
+      priority: pending.priority,
+      source: "manual",
+    });
 
     if (!online) {
       const qid = enqueue({ kind: "task", label: `New task: ${pending.title}` });

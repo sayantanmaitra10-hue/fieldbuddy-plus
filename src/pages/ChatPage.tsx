@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { tasks as seedTasks, employees } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
+import { useTasks } from "@/context/TasksContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +19,16 @@ import {
   ArrowLeft,
   CheckCheck,
   Clock,
+  Sparkles,
 } from "lucide-react";
 import { useSync } from "@/context/SyncContext";
+import { detectIntent, defaultHoursFor } from "@/lib/smart-task";
+import { SuggestionChip, ConvertCallout } from "@/components/SmartTaskSuggestion";
+import {
+  SmartTaskPreviewDialog,
+  type SmartTaskDraft,
+} from "@/components/SmartTaskPreviewDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type Message = {
   id: string;
@@ -29,6 +38,11 @@ type Message = {
   media?: { name: string; kind: "image" | "file" };
   mine?: boolean;
   pendingSyncId?: string;
+  intent?: { keyword: string; cleanedTitle: string };
+  converted?: boolean;
+  dismissed?: boolean;
+  system?: boolean;
+  taskId?: string;
 };
 
 type Thread = {
@@ -104,6 +118,9 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
 const ChatPage = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
+  const { addTask } = useTasks();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedThread = searchParams.get("thread");
 
@@ -114,8 +131,15 @@ const ChatPage = () => {
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [showListMobile, setShowListMobile] = useState(!requestedThread);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDraft, setPreviewDraft] = useState<SmartTaskDraft | null>(null);
+  const [previewSourceMsgId, setPreviewSourceMsgId] = useState<string | null>(null);
+  const [chipDismissed, setChipDismissed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const isManager = role === "manager" || role === "admin";
+  const draftIntent = useMemo(() => detectIntent(draft), [draft]);
 
   // Reset threads when role flips
   useEffect(() => {
@@ -166,6 +190,7 @@ const ChatPage = () => {
     const pendingSyncId = !online
       ? enqueue({ kind: "message", label: `Message in ${active.title}` })
       : undefined;
+    const intent = isManager ? detectIntent(text) : { isTask: false, cleanedTitle: "" };
     const msg: Message = {
       id: `m-${Date.now()}`,
       from: "You",
@@ -174,11 +199,15 @@ const ChatPage = () => {
       media,
       mine: true,
       pendingSyncId,
+      intent: intent.isTask && intent.keyword
+        ? { keyword: intent.keyword, cleanedTitle: intent.cleanedTitle }
+        : undefined,
     };
     setThreads((prev) =>
       prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, msg] } : t)),
     );
     setDraft("");
+    setChipDismissed(false);
     // simulate teammate auto-reply on channels (only when online)
     if (active.kind === "channel" && online) {
       setTimeout(() => {
@@ -193,6 +222,91 @@ const ChatPage = () => {
         );
       }, 1200);
     }
+  };
+
+  const defaultAssigneeIdFor = (thread?: Thread): string => {
+    if (!thread) return "e1";
+    if (thread.kind === "task") {
+      const taskId = thread.id.replace(/^task-/, "");
+      const t = seedTasks.find((x) => x.id === taskId);
+      if (t) return t.assigneeId;
+    }
+    // channel → first field employee
+    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
+    return first?.id ?? "e1";
+  };
+
+  const openConvert = (sourceText: string, keyword: string | undefined, cleanedTitle: string, sourceMsgId: string | null) => {
+    setPreviewDraft({
+      title: cleanedTitle || sourceText,
+      assigneeId: defaultAssigneeIdFor(active),
+      hours: defaultHoursFor(keyword as any),
+      priority: "medium",
+      keyword: keyword as any,
+      sourceMessage: sourceText,
+    });
+    setPreviewSourceMsgId(sourceMsgId);
+    setPreviewOpen(true);
+  };
+
+  const handleConfirmTask = (d: SmartTaskDraft) => {
+    if (!active) return;
+    const deadline = new Date(Date.now() + d.hours * 60 * 60 * 1000).toISOString();
+    const newTask = addTask({
+      title: d.title,
+      assigneeId: d.assigneeId,
+      deadline,
+      priority: d.priority,
+      source: "chat",
+      sourceMessageId: previewSourceMsgId ?? undefined,
+      sourceThreadId: active.id,
+      keyword: d.keyword,
+    });
+    // mark source message as converted
+    if (previewSourceMsgId) {
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === active.id
+            ? {
+                ...t,
+                messages: t.messages.map((m) =>
+                  m.id === previewSourceMsgId ? { ...m, converted: true, taskId: newTask.id } : m,
+                ),
+              }
+            : t,
+        ),
+      );
+    }
+    // append system message
+    const systemMsg: Message = {
+      id: `m-sys-${Date.now()}`,
+      from: "System",
+      text: `📋 Task created → ${newTask.title} · due in ${d.hours}h`,
+      time: nowTime(),
+      system: true,
+      taskId: newTask.id,
+    };
+    setThreads((prev) =>
+      prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, systemMsg] } : t)),
+    );
+    setPreviewOpen(false);
+    setPreviewDraft(null);
+    setPreviewSourceMsgId(null);
+    toast({ title: "Task created", description: `${newTask.title} → ${newTask.assignee}` });
+  };
+
+  const dismissMessage = (msgId: string) => {
+    if (!active) return;
+    setThreads((prev) =>
+      prev.map((t) =>
+        t.id === active.id
+          ? {
+              ...t,
+              messages: t.messages.map((m) => (m.id === msgId ? { ...m, dismissed: true } : m)),
+            }
+          : t,
+      ),
+    );
   };
 
   const onAttach = (kind: "image" | "file") => {
@@ -353,65 +467,112 @@ const ChatPage = () => {
                       No messages yet. Say hello 👋
                     </div>
                   )}
-                  {active.messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={cn("flex gap-2", m.mine ? "justify-end" : "justify-start")}
-                    >
-                      {!m.mine && (
-                        <div className="size-7 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold grid place-items-center shrink-0">
-                          {initialsOf(m.from)}
+                  {active.messages.map((m) => {
+                    if (m.system) {
+                      return (
+                        <div key={m.id} className="flex justify-center">
+                          <button
+                            onClick={() => m.taskId && navigate(`/app/tasks/${m.taskId}`)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/40 bg-accent/15 text-accent-foreground text-xs hover:bg-accent/25 transition-colors"
+                          >
+                            <Sparkles className="size-3.5" />
+                            <span>{m.text}</span>
+                          </button>
                         </div>
-                      )}
-                      <div
-                        className={cn(
-                          "max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm",
-                          m.mine
-                            ? "bg-primary text-primary-foreground rounded-br-sm"
-                            : "bg-card border border-border rounded-bl-sm",
-                        )}
-                      >
-                        {!m.mine && (
-                          <div className="text-[11px] font-semibold opacity-80 mb-0.5">
-                            {m.from}
-                          </div>
-                        )}
-                        {m.media && (
+                      );
+                    }
+                    const showCallout =
+                      isManager && m.mine && m.intent && !m.converted && !m.dismissed;
+                    return (
+                      <div key={m.id} className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}>
+                        <div className={cn("flex gap-2 w-full", m.mine ? "justify-end" : "justify-start")}>
+                          {!m.mine && (
+                            <div className="size-7 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold grid place-items-center shrink-0">
+                              {initialsOf(m.from)}
+                            </div>
+                          )}
                           <div
                             className={cn(
-                              "mb-1.5 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
-                              m.mine ? "bg-primary-foreground/15" : "bg-muted",
+                              "max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm",
+                              m.mine
+                                ? "bg-primary text-primary-foreground rounded-br-sm"
+                                : "bg-card border border-border rounded-bl-sm",
                             )}
                           >
-                            {m.media.kind === "image" ? (
-                              <ImageIcon className="size-3.5" />
-                            ) : (
-                              <Paperclip className="size-3.5" />
+                            {!m.mine && (
+                              <div className="text-[11px] font-semibold opacity-80 mb-0.5">
+                                {m.from}
+                              </div>
                             )}
-                            <span className="truncate">{m.media.name}</span>
+                            {m.media && (
+                              <div
+                                className={cn(
+                                  "mb-1.5 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
+                                  m.mine ? "bg-primary-foreground/15" : "bg-muted",
+                                )}
+                              >
+                                {m.media.kind === "image" ? (
+                                  <ImageIcon className="size-3.5" />
+                                ) : (
+                                  <Paperclip className="size-3.5" />
+                                )}
+                                <span className="truncate">{m.media.name}</span>
+                              </div>
+                            )}
+                            {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
+                            <div
+                              className={cn(
+                                "flex items-center gap-1 justify-end mt-1 text-[10px]",
+                                m.mine ? "opacity-80" : "text-muted-foreground",
+                              )}
+                            >
+                              {m.converted && (
+                                <span className="inline-flex items-center gap-0.5 text-accent-foreground/90">
+                                  <Sparkles className="size-2.5" /> Task
+                                </span>
+                              )}
+                              {m.time}
+                              {m.mine &&
+                                (m.pendingSyncId && queue.some((q) => q.id === m.pendingSyncId) ? (
+                                  <Clock className="size-3" />
+                                ) : (
+                                  <CheckCheck className="size-3" />
+                                ))}
+                            </div>
+                          </div>
+                        </div>
+                        {showCallout && (
+                          <div className="max-w-[78%] mt-1">
+                            <ConvertCallout
+                              onConvert={() =>
+                                openConvert(
+                                  m.text,
+                                  m.intent!.keyword,
+                                  m.intent!.cleanedTitle,
+                                  m.id,
+                                )
+                              }
+                              onDismiss={() => dismissMessage(m.id)}
+                            />
                           </div>
                         )}
-                        {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
-                        <div
-                          className={cn(
-                            "flex items-center gap-1 justify-end mt-1 text-[10px]",
-                            m.mine ? "opacity-80" : "text-muted-foreground",
-                          )}
-                        >
-                          {m.time}
-                          {m.mine &&
-                            (m.pendingSyncId && queue.some((q) => q.id === m.pendingSyncId) ? (
-                              <Clock className="size-3" />
-                            ) : (
-                              <CheckCheck className="size-3" />
-                            ))}
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
+                  {isManager && draftIntent.isTask && !chipDismissed && (
+                    <div className="mb-2 flex">
+                      <SuggestionChip
+                        keyword={draftIntent.keyword!}
+                        onConvert={() =>
+                          openConvert(draft, draftIntent.keyword, draftIntent.cleanedTitle, null)
+                        }
+                        onDismiss={() => setChipDismissed(true)}
+                      />
+                    </div>
+                  )}
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -469,6 +630,12 @@ const ChatPage = () => {
           </section>
         </div>
       </div>
+      <SmartTaskPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        initial={previewDraft}
+        onConfirm={handleConfirmTask}
+      />
     </>
   );
 };

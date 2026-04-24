@@ -13,6 +13,11 @@ export interface Task {
   priority: "low" | "medium" | "high";
   proof?: { type: "photo" | "video"; url: string; timestamp: string; geo: string }[];
   messages: { id: string; from: string; text: string; time: string; media?: string }[];
+  source?: "manual" | "chat";
+  sourceMessageId?: string;
+  sourceThreadId?: string;
+  defaultHours?: number;
+  extendedTimeline?: boolean;
 }
 
 export interface Employee {
@@ -31,7 +36,7 @@ export interface Employee {
 
 export interface Alert {
   id: string;
-  type: "no_checkin" | "overdue" | "inactivity" | "outside_zone";
+  type: "no_checkin" | "overdue" | "inactivity" | "outside_zone" | "extended_timeline";
   severity: "high" | "medium" | "low";
   employee: string;
   message: string;
