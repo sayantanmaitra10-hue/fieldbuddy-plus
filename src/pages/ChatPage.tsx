@@ -38,6 +38,11 @@ type Message = {
   media?: { name: string; kind: "image" | "file" };
   mine?: boolean;
   pendingSyncId?: string;
+  intent?: { keyword: string; cleanedTitle: string };
+  converted?: boolean;
+  dismissed?: boolean;
+  system?: boolean;
+  taskId?: string;
 };
 
 type Thread = {
