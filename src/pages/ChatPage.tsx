@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { tasks as seedTasks, employees } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
+import { useTasks } from "@/context/TasksContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +19,16 @@ import {
   ArrowLeft,
   CheckCheck,
   Clock,
+  Sparkles,
 } from "lucide-react";
 import { useSync } from "@/context/SyncContext";
+import { detectIntent, defaultHoursFor } from "@/lib/smart-task";
+import { SuggestionChip, ConvertCallout } from "@/components/SmartTaskSuggestion";
+import {
+  SmartTaskPreviewDialog,
+  type SmartTaskDraft,
+} from "@/components/SmartTaskPreviewDialog";
+import { useToast } from "@/hooks/use-toast";
 
 type Message = {
   id: string;
