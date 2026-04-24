@@ -562,6 +562,17 @@ const ChatPage = () => {
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
+                  {isManager && draftIntent.isTask && !chipDismissed && (
+                    <div className="mb-2 flex">
+                      <SuggestionChip
+                        keyword={draftIntent.keyword!}
+                        onConvert={() =>
+                          openConvert(draft, draftIntent.keyword, draftIntent.cleanedTitle, null)
+                        }
+                        onDismiss={() => setChipDismissed(true)}
+                      />
+                    </div>
+                  )}
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -619,6 +630,12 @@ const ChatPage = () => {
           </section>
         </div>
       </div>
+      <SmartTaskPreviewDialog
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        initial={previewDraft}
+        onConfirm={handleConfirmTask}
+      />
     </>
   );
 };
