@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RoleProvider } from "@/context/RoleContext";
 import { SyncProvider } from "@/context/SyncContext";
+import { TasksProvider } from "@/context/TasksContext";
 import { AppShell } from "@/components/layout/AppShell";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -27,6 +28,7 @@ const App = () => (
       <Sonner />
       <RoleProvider>
         <SyncProvider>
+        <TasksProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -42,6 +44,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        </TasksProvider>
         </SyncProvider>
       </RoleProvider>
     </TooltipProvider>
