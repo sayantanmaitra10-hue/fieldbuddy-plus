@@ -467,62 +467,98 @@ const ChatPage = () => {
                       No messages yet. Say hello 👋
                     </div>
                   )}
-                  {active.messages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={cn("flex gap-2", m.mine ? "justify-end" : "justify-start")}
-                    >
-                      {!m.mine && (
-                        <div className="size-7 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold grid place-items-center shrink-0">
-                          {initialsOf(m.from)}
+                  {active.messages.map((m) => {
+                    if (m.system) {
+                      return (
+                        <div key={m.id} className="flex justify-center">
+                          <button
+                            onClick={() => m.taskId && navigate(`/app/tasks/${m.taskId}`)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-accent/40 bg-accent/15 text-accent-foreground text-xs hover:bg-accent/25 transition-colors"
+                          >
+                            <Sparkles className="size-3.5" />
+                            <span>{m.text}</span>
+                          </button>
                         </div>
-                      )}
-                      <div
-                        className={cn(
-                          "max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm",
-                          m.mine
-                            ? "bg-primary text-primary-foreground rounded-br-sm"
-                            : "bg-card border border-border rounded-bl-sm",
-                        )}
-                      >
-                        {!m.mine && (
-                          <div className="text-[11px] font-semibold opacity-80 mb-0.5">
-                            {m.from}
-                          </div>
-                        )}
-                        {m.media && (
+                      );
+                    }
+                    const showCallout =
+                      isManager && m.mine && m.intent && !m.converted && !m.dismissed;
+                    return (
+                      <div key={m.id} className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}>
+                        <div className={cn("flex gap-2 w-full", m.mine ? "justify-end" : "justify-start")}>
+                          {!m.mine && (
+                            <div className="size-7 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold grid place-items-center shrink-0">
+                              {initialsOf(m.from)}
+                            </div>
+                          )}
                           <div
                             className={cn(
-                              "mb-1.5 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
-                              m.mine ? "bg-primary-foreground/15" : "bg-muted",
+                              "max-w-[78%] rounded-2xl px-3.5 py-2 text-sm shadow-sm",
+                              m.mine
+                                ? "bg-primary text-primary-foreground rounded-br-sm"
+                                : "bg-card border border-border rounded-bl-sm",
                             )}
                           >
-                            {m.media.kind === "image" ? (
-                              <ImageIcon className="size-3.5" />
-                            ) : (
-                              <Paperclip className="size-3.5" />
+                            {!m.mine && (
+                              <div className="text-[11px] font-semibold opacity-80 mb-0.5">
+                                {m.from}
+                              </div>
                             )}
-                            <span className="truncate">{m.media.name}</span>
+                            {m.media && (
+                              <div
+                                className={cn(
+                                  "mb-1.5 flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
+                                  m.mine ? "bg-primary-foreground/15" : "bg-muted",
+                                )}
+                              >
+                                {m.media.kind === "image" ? (
+                                  <ImageIcon className="size-3.5" />
+                                ) : (
+                                  <Paperclip className="size-3.5" />
+                                )}
+                                <span className="truncate">{m.media.name}</span>
+                              </div>
+                            )}
+                            {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
+                            <div
+                              className={cn(
+                                "flex items-center gap-1 justify-end mt-1 text-[10px]",
+                                m.mine ? "opacity-80" : "text-muted-foreground",
+                              )}
+                            >
+                              {m.converted && (
+                                <span className="inline-flex items-center gap-0.5 text-accent-foreground/90">
+                                  <Sparkles className="size-2.5" /> Task
+                                </span>
+                              )}
+                              {m.time}
+                              {m.mine &&
+                                (m.pendingSyncId && queue.some((q) => q.id === m.pendingSyncId) ? (
+                                  <Clock className="size-3" />
+                                ) : (
+                                  <CheckCheck className="size-3" />
+                                ))}
+                            </div>
+                          </div>
+                        </div>
+                        {showCallout && (
+                          <div className="max-w-[78%] mt-1">
+                            <ConvertCallout
+                              onConvert={() =>
+                                openConvert(
+                                  m.text,
+                                  m.intent!.keyword,
+                                  m.intent!.cleanedTitle,
+                                  m.id,
+                                )
+                              }
+                              onDismiss={() => dismissMessage(m.id)}
+                            />
                           </div>
                         )}
-                        {m.text && <div className="whitespace-pre-wrap break-words">{m.text}</div>}
-                        <div
-                          className={cn(
-                            "flex items-center gap-1 justify-end mt-1 text-[10px]",
-                            m.mine ? "opacity-80" : "text-muted-foreground",
-                          )}
-                        >
-                          {m.time}
-                          {m.mine &&
-                            (m.pendingSyncId && queue.some((q) => q.id === m.pendingSyncId) ? (
-                              <Clock className="size-3" />
-                            ) : (
-                              <CheckCheck className="size-3" />
-                            ))}
-                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
