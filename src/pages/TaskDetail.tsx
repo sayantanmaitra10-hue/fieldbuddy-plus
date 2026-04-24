@@ -66,19 +66,20 @@ const TaskDetail = () => {
       : "17:00",
   );
 
-  if (!t) return <div className="p-8">Task not found.</div>;
-
-  const status = t.status;
-  const defHours = t.defaultHours ?? defaultHoursFor();
-  const pendingForUser = pendingFor(t.assigneeId);
+  const status = t?.status ?? "pending";
+  const defHours = t?.defaultHours ?? defaultHoursFor();
+  const assigneeId = t?.assigneeId ?? "";
+  const pendingForUser = pendingFor(assigneeId);
   const pendingCount = pendingForUser.length;
   const canAdjust = pendingCount > 1;
   const isManager = role === "manager" || role === "admin";
 
   const alternates = useMemo(
-    () => suggestAlternates(t.assigneeId, employees, tasks, 3),
-    [t.assigneeId, tasks],
+    () => suggestAlternates(assigneeId, employees, tasks, 3),
+    [assigneeId, tasks],
   );
+
+  if (!t) return <div className="p-8">Task not found.</div>;
 
   const send = () => {
     if (!msg.trim()) return;
