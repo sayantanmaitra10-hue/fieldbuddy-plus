@@ -659,7 +659,7 @@ const ChatPage = () => {
                     <Input
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
-                      placeholder={`Message ${active.kind === "task" ? "thread" : active.title}…`}
+                      placeholder={`Message ${active.kind === "task" ? "thread" : active.kind === "direct" ? active.title : active.title}…`}
                       className="flex-1 bg-background"
                     />
                     <Button
