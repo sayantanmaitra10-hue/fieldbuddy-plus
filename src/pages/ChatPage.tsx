@@ -494,10 +494,10 @@ const ChatPage = () => {
                   </Button>
                   <div
                     className={cn(
-                      "size-9 rounded-lg grid place-items-center font-display font-semibold text-sm shrink-0",
-                      active.kind === "task"
-                        ? "gradient-primary text-primary-foreground"
-                        : "bg-accent/20 text-accent-foreground",
+                      "size-9 grid place-items-center font-display font-semibold text-sm shrink-0",
+                      active.kind === "task" && "rounded-lg gradient-primary text-primary-foreground",
+                      active.kind === "channel" && "rounded-lg bg-accent/20 text-accent-foreground",
+                      active.kind === "direct" && "rounded-full bg-primary/15 text-primary border border-primary/20",
                     )}
                   >
                     {active.initials}
@@ -509,7 +509,7 @@ const ChatPage = () => {
                     </div>
                   </div>
                   <Badge variant="outline" className="hidden sm:inline-flex text-[10px]">
-                    {active.kind === "task" ? "Task thread" : "Channel"}
+                    {active.kind === "task" ? "Task thread" : active.kind === "direct" ? "Direct" : "Channel"}
                   </Badge>
                 </header>
 
