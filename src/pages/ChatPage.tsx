@@ -127,10 +127,21 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
     },
   ];
 
-  // Managers/admins get a direct-message thread per field employee
+  // Managers/admins get a DM thread per field employee.
+  // Field users get a single DM thread with their manager so they can reply.
   const directThreads: Thread[] =
     role === "field"
-      ? []
+      ? [
+          {
+            id: "dm-manager",
+            kind: "direct" as const,
+            title: "Manager",
+            subtitle: "Operations Lead",
+            initials: "MG",
+            unread: 0,
+            messages: [],
+          },
+        ]
       : employees
           .filter((e) => e.role.toLowerCase().includes("field"))
           .map((e) => ({
@@ -193,6 +204,7 @@ const ChatPage = () => {
       }
       return prev.map((t) => (t.id === requestedThread ? { ...t, unread: 0 } : t));
     });
+    
     setActiveId(requestedThread);
     setShowListMobile(false);
   }, [requestedThread, isManager]);
@@ -260,6 +272,28 @@ const ChatPage = () => {
           prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
         );
       }, 1200);
+    }
+    // simulate the other side replying on direct threads (only when online)
+    if (active.kind === "direct" && online) {
+      const replyFrom =
+        role === "field"
+          ? "Manager"
+          : active.title;
+      const replyText =
+        role === "field"
+          ? "Thanks for the update — keep me posted."
+          : "On it, will update you shortly.";
+      setTimeout(() => {
+        const reply: Message = {
+          id: `m-${Date.now()}-r`,
+          from: replyFrom,
+          text: replyText,
+          time: nowTime(),
+        };
+        setThreads((prev) =>
+          prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
+        );
+      }, 1400);
     }
   };
 
