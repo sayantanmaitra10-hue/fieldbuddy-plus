@@ -127,10 +127,21 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
     },
   ];
 
-  // Managers/admins get a direct-message thread per field employee
+  // Managers/admins get a DM thread per field employee.
+  // Field users get a single DM thread with their manager so they can reply.
   const directThreads: Thread[] =
     role === "field"
-      ? []
+      ? [
+          {
+            id: "dm-manager",
+            kind: "direct" as const,
+            title: "Manager",
+            subtitle: "Operations Lead",
+            initials: "MG",
+            unread: 0,
+            messages: [],
+          },
+        ]
       : employees
           .filter((e) => e.role.toLowerCase().includes("field"))
           .map((e) => ({
