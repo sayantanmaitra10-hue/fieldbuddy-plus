@@ -436,6 +436,16 @@ const ChatPage = () => {
               </div>
             </div>
             <ScrollArea className="flex-1">
+              {directThreads.length > 0 && (
+                <div>
+                  <div className="px-3 pt-3 pb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <User className="size-3" /> Direct messages
+                  </div>
+                  {directThreads.map((t) => (
+                    <ThreadRow key={t.id} t={t} />
+                  ))}
+                </div>
+              )}
               {channelThreads.length > 0 && (
                 <div>
                   <div className="px-3 pt-3 pb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
