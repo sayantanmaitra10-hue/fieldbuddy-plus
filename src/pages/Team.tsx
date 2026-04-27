@@ -1,13 +1,19 @@
 import { Topbar } from "@/components/layout/Topbar";
 import { employees } from "@/lib/mock-data";
-import { Link } from "react-router-dom";
-import { MapPin } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { MapPin, MessageSquare } from "lucide-react";
 import { StatusPill } from "@/components/StatusPill";
 import { WorkloadPill } from "@/components/WorkloadPill";
+import { Button } from "@/components/ui/button";
 import { useTasks } from "@/context/TasksContext";
+import { useRole } from "@/context/RoleContext";
 
 const Team = () => {
   const { workloadFor, pendingFor } = useTasks();
+  const { role } = useRole();
+  const navigate = useNavigate();
+  const canMessage = role === "manager" || role === "admin";
+
   return (
     <>
       <Topbar title="Team" subtitle={`${employees.length} field employees`} />
@@ -20,9 +26,26 @@ const Team = () => {
               <Link
                 key={e.id}
                 to={`/app/team/${e.id}`}
-                className="bg-card border border-border rounded-xl p-5 shadow-card hover:shadow-elegant hover:border-primary/30 transition-all"
+                className="bg-card border border-border rounded-xl p-5 shadow-card hover:shadow-elegant hover:border-primary/30 transition-all relative block"
               >
-                <div className="flex items-center gap-3 mb-4">
+                {canMessage && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={(ev) => {
+                      ev.preventDefault();
+                      ev.stopPropagation();
+                      navigate(`/app/chat?thread=dm-${e.id}`);
+                    }}
+                    className="absolute top-3 right-3 size-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                    title={`Message ${e.name}`}
+                    aria-label={`Message ${e.name}`}
+                  >
+                    <MessageSquare className="size-4" />
+                  </Button>
+                )}
+                <div className="flex items-center gap-3 mb-4 pr-9">
                   <div className="size-12 rounded-full gradient-primary text-primary-foreground grid place-items-center font-display font-semibold">
                     {e.avatar}
                   </div>
