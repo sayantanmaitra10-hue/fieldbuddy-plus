@@ -376,10 +376,10 @@ const ChatPage = () => {
     >
       <div
         className={cn(
-          "size-10 rounded-lg grid place-items-center font-display font-semibold text-sm shrink-0",
-          t.kind === "task"
-            ? "gradient-primary text-primary-foreground"
-            : "bg-accent/20 text-accent-foreground",
+          "size-10 grid place-items-center font-display font-semibold text-sm shrink-0",
+          t.kind === "task" && "rounded-lg gradient-primary text-primary-foreground",
+          t.kind === "channel" && "rounded-lg bg-accent/20 text-accent-foreground",
+          t.kind === "direct" && "rounded-full bg-primary/15 text-primary border border-primary/20",
         )}
       >
         {t.initials}
