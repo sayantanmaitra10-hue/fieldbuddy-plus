@@ -272,6 +272,28 @@ const ChatPage = () => {
         );
       }, 1200);
     }
+    // simulate the other side replying on direct threads (only when online)
+    if (active.kind === "direct" && online) {
+      const replyFrom =
+        role === "field"
+          ? "Manager"
+          : active.title;
+      const replyText =
+        role === "field"
+          ? "Thanks for the update — keep me posted."
+          : "On it, will update you shortly.";
+      setTimeout(() => {
+        const reply: Message = {
+          id: `m-${Date.now()}-r`,
+          from: replyFrom,
+          text: replyText,
+          time: nowTime(),
+        };
+        setThreads((prev) =>
+          prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
+        );
+      }, 1400);
+    }
   };
 
   const defaultAssigneeIdFor = (thread?: Thread): string => {
