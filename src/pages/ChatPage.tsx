@@ -179,16 +179,23 @@ const ChatPage = () => {
     setActiveId((prev) => (next.find((t) => t.id === prev) ? prev : next[0]?.id ?? ""));
   }, [role]);
 
-  // React to ?thread= changes (e.g. navigated from Task detail)
+  // React to ?thread= changes (e.g. navigated from Task detail or Team page)
   useEffect(() => {
     if (!requestedThread) return;
     setThreads((prev) => {
-      if (!prev.find((t) => t.id === requestedThread)) return prev;
+      // Lazily materialise a DM thread if not yet present
+      if (!prev.find((t) => t.id === requestedThread)) {
+        if (requestedThread.startsWith("dm-") && isManager) {
+          const dm = buildDirectThread(requestedThread.replace(/^dm-/, ""));
+          if (dm) return [dm, ...prev];
+        }
+        return prev;
+      }
       return prev.map((t) => (t.id === requestedThread ? { ...t, unread: 0 } : t));
     });
     setActiveId(requestedThread);
     setShowListMobile(false);
-  }, [requestedThread]);
+  }, [requestedThread, isManager]);
 
   const active = threads.find((t) => t.id === activeId);
 
@@ -200,6 +207,7 @@ const ChatPage = () => {
     [threads, query],
   );
 
+  const directThreads = filtered.filter((t) => t.kind === "direct");
   const taskThreads = filtered.filter((t) => t.kind === "task");
   const channelThreads = filtered.filter((t) => t.kind === "channel");
 
@@ -261,6 +269,9 @@ const ChatPage = () => {
       const taskId = thread.id.replace(/^task-/, "");
       const t = seedTasks.find((x) => x.id === taskId);
       if (t) return t.assigneeId;
+    }
+    if (thread.kind === "direct") {
+      return thread.id.replace(/^dm-/, "");
     }
     // channel → first field employee
     const first = employees.find((e) => e.role.toLowerCase().includes("field"));
