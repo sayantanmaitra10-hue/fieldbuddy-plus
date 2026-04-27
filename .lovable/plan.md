@@ -1,76 +1,38 @@
+## Fix — Manager → Field employee direct chat entry points
 
+**Problem:** In the current build, managers can only open chats that already exist (task threads + channels seeded in `ChatPage`). There's no affordance to start a 1:1 conversation with a specific field employee, so the manager cannot initiate a chat from the Team page or Employee detail.
 
-## Epic 9 — Smart Task Creation from Chat (rule-based, interactive mock)
+### Solution
 
-Layer intent detection, auto-task creation, workload-aware scheduling, and reassignment on top of the existing chat + tasks + alerts surfaces. All rule-based for the MVP — no AI calls — so it stays a self-contained interactive prototype consistent with prior epics.
+Add **"Message"** buttons on the Team grid and Employee detail header that deep-link into `ChatPage` and open (or create on the fly) a direct thread with that employee.
 
-### What you'll see end-to-end
+### Changes
 
-1. **Manager types in chat** → as keywords appear, an inline "✨ Convert to Task" suggestion chip slides in above the input (Story 9.7).
-2. **Manager sends an actionable message** → a callout bubble attaches under the message: *"This looks like a task. Convert?"* with **Convert** / **Dismiss** (Story 9.1).
-3. **Convert opens a Task Preview drawer** with prefilled title (cleaned message), assignee (chat recipient or channel-picker), priority, and a **smart deadline** chosen by keyword (Stories 9.2 + 9.7).
-4. **Task is created instantly** → appears on Tasks page with a new **"From chat"** badge, and a system message lands back in the thread: *"📋 Task created → Site visit at Andheri · due 6h"* with a deep-link.
-5. **Field user opens the new task** → header shows *Suggested timeline · 6h* + *You have 3 pending tasks* meter; if pending > 1, **"Adjust deadline"** is enabled (Story 9.3).
-6. **Field user extends deadline > 150% of default** → task gets an **"Extended Timeline"** pill, and a new alert fires on the Alerts page + manager toast (Story 9.4).
-7. **Manager opens an Extended task** → a **"Reassign to faster teammate"** panel lists field users sorted by workload score, with Low/Med/High pills and ETA. Selecting one reassigns + posts a system message in the thread (Story 9.5).
-8. **Team page** picks up workload pills (Low/Med/High) on every employee card (Story 9.6).
+**`src/pages/ChatPage.tsx`**
+- Extend `buildInitialThreads` to seed a **Direct messages** section: one thread per field employee for managers/admins (`id: "dm-{employeeId}"`, kind `"direct"`, title = employee name, subtitle = role, initials from name).
+- Add `"direct"` to the `Thread["kind"]` union and render a new **"Direct messages"** group in the sidebar (with a `User` icon header), shown above task threads.
+- When `?thread=dm-{employeeId}` is in the URL but not yet in state (e.g. role just switched or first visit), lazily create the thread from `employees` lookup so the deep-link always resolves.
+- `defaultAssigneeIdFor` updated: for `direct` threads, return the employee id parsed from the thread id — so converting a chat message to a task auto-assigns to that employee.
+- Reuse the existing send / smart-task / offline-sync logic unchanged — direct threads behave like task threads minus the auto-reply.
 
-### Rule definitions (centralised in one file)
+**`src/pages/Team.tsx`**
+- Add a small **"Message"** ghost button (MessageSquare icon) to each employee card, visible only when `role === "manager" | "admin"`. Clicking it `navigate("/app/chat?thread=dm-{e.id}")` and `e.stopPropagation()` so the card link still works for the rest of the card.
 
-**`src/lib/smart-task.ts`** — pure functions, fully unit-testable:
-- `KEYWORDS = ["visit","check","deliver","install","call","inspect","collect"]`
-- `detectIntent(text)` → `{ isTask: boolean, keyword?: string, cleanedTitle: string }` (strips leading "please", "can you", trailing punctuation, capitalises).
-- `defaultHoursFor(keyword)`:
-  - `call` → 1h, `check`/`inspect` → 3h, `visit` → 6h, `collect` → 4h, `deliver` → 8h, `install` → 8h, fallback → 4h.
-- `EXTENDED_THRESHOLD = 1.5` and `isExtended(actualHours, defaultHours)`.
-- `workloadScore(employee, tasks)` = `pendingCount + sum(urgencyWeight(deadline))` where urgency is 3 if <2h, 2 if <8h, 1 otherwise.
-- `workloadBand(score)` → `"low" | "medium" | "high"` (≤3 / ≤7 / >7).
-- `suggestAlternates(currentAssigneeId, employees, tasks)` → sorted ascending by score, excluding current.
+**`src/pages/EmployeeDetail.tsx`**
+- Add a primary **"Message"** button in the header (next to the name block) for managers/admins, linking to `/app/chat?thread=dm-{id}`.
 
-### Files touched
-
-**New**
-- `src/lib/smart-task.ts` — rules + scoring engine described above.
-- `src/components/SmartTaskSuggestion.tsx` — inline chip rendered above the chat input + convert callout under detected messages.
-- `src/components/SmartTaskPreviewDialog.tsx` — review drawer (title / assignee / deadline / priority / source-message reference) reusing existing `Dialog` + `Calendar` primitives. Saves into a new shared store.
-- `src/context/TasksContext.tsx` — promote the currently-local Tasks state into a provider so Chat → Tasks → TaskDetail share one source. Exposes `addTask`, `updateTask`, `reassignTask`, `tasks`, plus selectors `pendingFor(employeeId)` and `workloadFor(employeeId)`.
-- `src/components/WorkloadPill.tsx` — Low/Med/High pill (green / amber / red tokens already in theme).
-- `src/components/ExtendedTimelineBanner.tsx` — used in TaskDetail when flagged.
-
-**Edit**
-- `src/App.tsx` — wrap with `<TasksProvider>` (inside `SyncProvider`).
-- `src/pages/ChatPage.tsx`
-  - On `draft` change → run `detectIntent`; if matched + role is `manager`/`admin`, show inline suggestion chip above the input.
-  - On `send` of an actionable message → push the message *and* a follow-up "convert?" affordance attached to that message id.
-  - "Convert" opens `SmartTaskPreviewDialog` prefilled (assignee = chat counterpart for task threads, or first channel member for channels).
-  - On confirm → `tasksContext.addTask({ source: "chat", sourceMessageId, sourceThreadId })` and append a system message with deep-link to `/app/tasks/{id}`.
-- `src/pages/TasksPage.tsx`
-  - Read tasks from `TasksContext` instead of `useState(seedTasks)`.
-  - TaskCard receives `fromChat` + `extendedTimeline` flags from new task fields.
-- `src/components/TaskCard.tsx`
-  - Add small **"From chat"** badge (left of pending-sync) and **"Extended"** badge (amber, AlertTriangle icon) when relevant.
-- `src/pages/TaskDetail.tsx`
-  - Read/write via `TasksContext` so deadline edits persist across pages.
-  - Field-role header card: *Suggested · Xh · You have N pending tasks today*. Show **"Adjust deadline"** button (disabled when pendingCount ≤ 1).
-  - Deadline editor (Popover with Calendar + time input) — on save, recompute `isExtended`; if true → set `task.extendedTimeline = true`, push an `Alert` (managerial) and a manager toast.
-  - Manager-role view, when `extendedTimeline === true`: render a **"Reassign for faster turnaround"** panel listing top-3 alternates from `suggestAlternates` with workload pill + pending-count + estimated availability ("free in ~Xh"). "Reassign" updates context and posts a system message in the linked thread (if any).
-- `src/pages/Team.tsx` — add `WorkloadPill` next to each employee using `workloadFor(e.id)`.
-- `src/pages/Alerts.tsx` — render new `extended_timeline` alerts emitted by the engine. Add the type to `Alert` union in `mock-data.ts`.
-- `src/lib/mock-data.ts`
-  - Extend `Task` with `source?: "manual" | "chat"`, `sourceMessageId?`, `sourceThreadId?`, `defaultHours?: number`, `extendedTimeline?: boolean`.
-  - Extend `Alert['type']` with `"extended_timeline"`.
+**`src/components/TaskCard.tsx`** (small bonus, low risk)
+- If manager/admin viewing a task assigned to a field user, the existing chat icon already opens the task thread — no change needed. (Mention only so we don't accidentally duplicate.)
 
 ### Visual spec
-- Suggestion chip: pill above input, `bg-primary/10 text-primary border-primary/30`, sparkles icon, slide-in via existing tailwind `animate-in`.
-- Convert callout under message: subtle inset card with two ghost buttons.
-- "From chat" badge: violet (`bg-accent/15 text-accent-foreground`), MessageSquare icon, 9px uppercase.
-- "Extended" badge: amber, AlertTriangle icon, matches existing pending-sync language.
-- Workload pill: `low`=success, `medium`=warning, `high`=destructive, all at 15% bg, dot indicator.
-- Reassign panel: rows with avatar + name + workload pill + pending count + "Reassign" button on the right.
+- Team card button: ghost, `size="sm"`, `MessageSquare` icon + "Message" label, placed in the card footer right side or as an icon-only button top-right of the card depending on space (icon-only on mobile, label on desktop).
+- Employee detail button: `variant="default"`, gap-1.5, MessageSquare icon, sits in the header row.
+- Sidebar "Direct messages" group: same styling as existing "Channels" / "Task threads" headers, `User` lucide icon.
 
-### Out of scope (deferred upgrades)
-- True NLP — keyword matcher only; structure leaves room to swap `detectIntent` with an AI gateway call later.
-- Server-side persistence — context is in-memory like the rest of the prototype.
-- Multi-task batch creation from a single message.
-- Auto-rebalance daemon — reassignment stays manager-initiated.
+### Out of scope
+- Group DM creation / new-chat composer modal — the per-employee deep-link covers the immediate gap.
+- Persisting DM history across reloads (stays in-memory like the rest of the prototype).
+- Field-role view of DMs to other field employees — only manager→field is unblocked here, matching the reported issue.
 
+### Files touched
+- **Edit:** `src/pages/ChatPage.tsx`, `src/pages/Team.tsx`, `src/pages/EmployeeDetail.tsx`

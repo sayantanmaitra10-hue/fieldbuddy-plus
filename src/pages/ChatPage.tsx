@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import {
   MessageSquare,
   Users,
+  User,
   Send,
   Paperclip,
   Image as ImageIcon,
@@ -47,7 +48,7 @@ type Message = {
 
 type Thread = {
   id: string;
-  kind: "task" | "channel";
+  kind: "task" | "channel" | "direct";
   title: string;
   subtitle: string;
   initials: string;
@@ -65,6 +66,20 @@ const initialsOf = (s: string) =>
     .slice(0, 2)
     .join("")
     .toUpperCase();
+
+const buildDirectThread = (employeeId: string): Thread | null => {
+  const e = employees.find((x) => x.id === employeeId);
+  if (!e) return null;
+  return {
+    id: `dm-${e.id}`,
+    kind: "direct",
+    title: e.name,
+    subtitle: e.role,
+    initials: initialsOf(e.name),
+    unread: 0,
+    messages: [],
+  };
+};
 
 const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
   const taskScope = role === "field" ? seedTasks.filter((t) => t.assigneeId === "e1") : seedTasks;
@@ -112,7 +127,23 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
     },
   ];
 
-  return [...taskThreads, ...channelThreads];
+  // Managers/admins get a direct-message thread per field employee
+  const directThreads: Thread[] =
+    role === "field"
+      ? []
+      : employees
+          .filter((e) => e.role.toLowerCase().includes("field"))
+          .map((e) => ({
+            id: `dm-${e.id}`,
+            kind: "direct" as const,
+            title: e.name,
+            subtitle: e.role,
+            initials: initialsOf(e.name),
+            unread: 0,
+            messages: [],
+          }));
+
+  return [...directThreads, ...channelThreads, ...taskThreads];
 };
 
 const ChatPage = () => {
