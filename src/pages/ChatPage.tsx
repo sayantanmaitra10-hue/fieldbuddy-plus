@@ -204,6 +204,7 @@ const ChatPage = () => {
       }
       return prev.map((t) => (t.id === requestedThread ? { ...t, unread: 0 } : t));
     });
+    void isManager;
     setActiveId(requestedThread);
     setShowListMobile(false);
   }, [requestedThread, isManager]);
