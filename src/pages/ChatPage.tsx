@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import {
   MessageSquare,
   Users,
+  User,
   Send,
   Paperclip,
   Image as ImageIcon,
@@ -47,7 +48,7 @@ type Message = {
 
 type Thread = {
   id: string;
-  kind: "task" | "channel";
+  kind: "task" | "channel" | "direct";
   title: string;
   subtitle: string;
   initials: string;
@@ -65,6 +66,20 @@ const initialsOf = (s: string) =>
     .slice(0, 2)
     .join("")
     .toUpperCase();
+
+const buildDirectThread = (employeeId: string): Thread | null => {
+  const e = employees.find((x) => x.id === employeeId);
+  if (!e) return null;
+  return {
+    id: `dm-${e.id}`,
+    kind: "direct",
+    title: e.name,
+    subtitle: e.role,
+    initials: initialsOf(e.name),
+    unread: 0,
+    messages: [],
+  };
+};
 
 const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
   const taskScope = role === "field" ? seedTasks.filter((t) => t.assigneeId === "e1") : seedTasks;
@@ -112,7 +127,23 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
     },
   ];
 
-  return [...taskThreads, ...channelThreads];
+  // Managers/admins get a direct-message thread per field employee
+  const directThreads: Thread[] =
+    role === "field"
+      ? []
+      : employees
+          .filter((e) => e.role.toLowerCase().includes("field"))
+          .map((e) => ({
+            id: `dm-${e.id}`,
+            kind: "direct" as const,
+            title: e.name,
+            subtitle: e.role,
+            initials: initialsOf(e.name),
+            unread: 0,
+            messages: [],
+          }));
+
+  return [...directThreads, ...channelThreads, ...taskThreads];
 };
 
 const ChatPage = () => {
@@ -148,16 +179,23 @@ const ChatPage = () => {
     setActiveId((prev) => (next.find((t) => t.id === prev) ? prev : next[0]?.id ?? ""));
   }, [role]);
 
-  // React to ?thread= changes (e.g. navigated from Task detail)
+  // React to ?thread= changes (e.g. navigated from Task detail or Team page)
   useEffect(() => {
     if (!requestedThread) return;
     setThreads((prev) => {
-      if (!prev.find((t) => t.id === requestedThread)) return prev;
+      // Lazily materialise a DM thread if not yet present
+      if (!prev.find((t) => t.id === requestedThread)) {
+        if (requestedThread.startsWith("dm-") && isManager) {
+          const dm = buildDirectThread(requestedThread.replace(/^dm-/, ""));
+          if (dm) return [dm, ...prev];
+        }
+        return prev;
+      }
       return prev.map((t) => (t.id === requestedThread ? { ...t, unread: 0 } : t));
     });
     setActiveId(requestedThread);
     setShowListMobile(false);
-  }, [requestedThread]);
+  }, [requestedThread, isManager]);
 
   const active = threads.find((t) => t.id === activeId);
 
@@ -169,6 +207,7 @@ const ChatPage = () => {
     [threads, query],
   );
 
+  const directThreads = filtered.filter((t) => t.kind === "direct");
   const taskThreads = filtered.filter((t) => t.kind === "task");
   const channelThreads = filtered.filter((t) => t.kind === "channel");
 
@@ -230,6 +269,9 @@ const ChatPage = () => {
       const taskId = thread.id.replace(/^task-/, "");
       const t = seedTasks.find((x) => x.id === taskId);
       if (t) return t.assigneeId;
+    }
+    if (thread.kind === "direct") {
+      return thread.id.replace(/^dm-/, "");
     }
     // channel → first field employee
     const first = employees.find((e) => e.role.toLowerCase().includes("field"));
@@ -334,10 +376,10 @@ const ChatPage = () => {
     >
       <div
         className={cn(
-          "size-10 rounded-lg grid place-items-center font-display font-semibold text-sm shrink-0",
-          t.kind === "task"
-            ? "gradient-primary text-primary-foreground"
-            : "bg-accent/20 text-accent-foreground",
+          "size-10 grid place-items-center font-display font-semibold text-sm shrink-0",
+          t.kind === "task" && "rounded-lg gradient-primary text-primary-foreground",
+          t.kind === "channel" && "rounded-lg bg-accent/20 text-accent-foreground",
+          t.kind === "direct" && "rounded-full bg-primary/15 text-primary border border-primary/20",
         )}
       >
         {t.initials}
@@ -394,6 +436,16 @@ const ChatPage = () => {
               </div>
             </div>
             <ScrollArea className="flex-1">
+              {directThreads.length > 0 && (
+                <div>
+                  <div className="px-3 pt-3 pb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <User className="size-3" /> Direct messages
+                  </div>
+                  {directThreads.map((t) => (
+                    <ThreadRow key={t.id} t={t} />
+                  ))}
+                </div>
+              )}
               {channelThreads.length > 0 && (
                 <div>
                   <div className="px-3 pt-3 pb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -442,10 +494,10 @@ const ChatPage = () => {
                   </Button>
                   <div
                     className={cn(
-                      "size-9 rounded-lg grid place-items-center font-display font-semibold text-sm shrink-0",
-                      active.kind === "task"
-                        ? "gradient-primary text-primary-foreground"
-                        : "bg-accent/20 text-accent-foreground",
+                      "size-9 grid place-items-center font-display font-semibold text-sm shrink-0",
+                      active.kind === "task" && "rounded-lg gradient-primary text-primary-foreground",
+                      active.kind === "channel" && "rounded-lg bg-accent/20 text-accent-foreground",
+                      active.kind === "direct" && "rounded-full bg-primary/15 text-primary border border-primary/20",
                     )}
                   >
                     {active.initials}
@@ -457,7 +509,7 @@ const ChatPage = () => {
                     </div>
                   </div>
                   <Badge variant="outline" className="hidden sm:inline-flex text-[10px]">
-                    {active.kind === "task" ? "Task thread" : "Channel"}
+                    {active.kind === "task" ? "Task thread" : active.kind === "direct" ? "Direct" : "Channel"}
                   </Badge>
                 </header>
 
@@ -607,7 +659,7 @@ const ChatPage = () => {
                     <Input
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
-                      placeholder={`Message ${active.kind === "task" ? "thread" : active.title}…`}
+                      placeholder={`Message ${active.kind === "task" ? "thread" : active.kind === "direct" ? active.title : active.title}…`}
                       className="flex-1 bg-background"
                     />
                     <Button
