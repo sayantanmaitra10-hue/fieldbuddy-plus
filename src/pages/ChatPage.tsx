@@ -177,6 +177,18 @@ const ChatPage = () => {
   const [previewDraft, setPreviewDraft] = useState<SmartTaskDraft | null>(null);
   const [previewSourceMsgId, setPreviewSourceMsgId] = useState<string | null>(null);
   const [chipDismissed, setChipDismissed] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("smart-task-tip-dismissed") === "1";
+  });
+  const dismissTip = () => {
+    setTipDismissed(true);
+    try {
+      window.localStorage.setItem("smart-task-tip-dismissed", "1");
+    } catch {
+      /* noop */
+    }
+  };
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -262,11 +274,16 @@ const ChatPage = () => {
     // simulate teammate auto-reply on channels (only when online)
     if (active.kind === "channel" && online) {
       setTimeout(() => {
+        const replyText = "Got it 👍";
+        const replyIntent = detectIntent(replyText);
         const reply: Message = {
           id: `m-${Date.now()}-r`,
           from: "Priya Sharma",
-          text: "Got it 👍",
+          text: replyText,
           time: nowTime(),
+          intent: replyIntent.isTask && replyIntent.keyword
+            ? { keyword: replyIntent.keyword, cleanedTitle: replyIntent.cleanedTitle }
+            : undefined,
         };
         setThreads((prev) =>
           prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
@@ -283,18 +300,28 @@ const ChatPage = () => {
         role === "field"
           ? "Thanks for the update — keep me posted."
           : "On it, will update you shortly.";
+      const replyIntent = detectIntent(replyText);
       setTimeout(() => {
         const reply: Message = {
           id: `m-${Date.now()}-r`,
           from: replyFrom,
           text: replyText,
           time: nowTime(),
+          intent: replyIntent.isTask && replyIntent.keyword
+            ? { keyword: replyIntent.keyword, cleanedTitle: replyIntent.cleanedTitle }
+            : undefined,
         };
         setThreads((prev) =>
           prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
         );
       }, 1400);
     }
+  };
+
+  // Map an inbound message sender name to an employee id, falling back to thread default
+  const senderToAssigneeId = (fromName: string): string | null => {
+    const e = employees.find((x) => x.name === fromName);
+    return e?.id ?? null;
   };
 
   const defaultAssigneeIdFor = (thread?: Thread): string => {
@@ -312,10 +339,16 @@ const ChatPage = () => {
     return first?.id ?? "e1";
   };
 
-  const openConvert = (sourceText: string, keyword: string | undefined, cleanedTitle: string, sourceMsgId: string | null) => {
+  const openConvert = (
+    sourceText: string,
+    keyword: string | undefined,
+    cleanedTitle: string,
+    sourceMsgId: string | null,
+    assigneeIdOverride?: string,
+  ) => {
     setPreviewDraft({
       title: cleanedTitle || sourceText,
-      assigneeId: defaultAssigneeIdFor(active),
+      assigneeId: assigneeIdOverride ?? defaultAssigneeIdFor(active),
       hours: defaultHoursFor(keyword as any),
       priority: "medium",
       keyword: keyword as any,
@@ -567,8 +600,20 @@ const ChatPage = () => {
                         </div>
                       );
                     }
+                    // Compute intent on-the-fly for inbound messages so seeded/auto-reply
+                    // text also surfaces a Convert callout to managers.
+                    const liveIntent =
+                      m.intent ??
+                      (isManager && !m.mine && m.text
+                        ? (() => {
+                            const r = detectIntent(m.text);
+                            return r.isTask && r.keyword
+                              ? { keyword: r.keyword, cleanedTitle: r.cleanedTitle }
+                              : undefined;
+                          })()
+                        : undefined);
                     const showCallout =
-                      isManager && m.mine && m.intent && !m.converted && !m.dismissed;
+                      isManager && !!liveIntent && !m.converted && !m.dismissed;
                     return (
                       <div key={m.id} className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}>
                         <div className={cn("flex gap-2 w-full", m.mine ? "justify-end" : "justify-start")}>
@@ -627,15 +672,16 @@ const ChatPage = () => {
                             </div>
                           </div>
                         </div>
-                        {showCallout && (
+                        {showCallout && liveIntent && (
                           <div className="max-w-[78%] mt-1">
                             <ConvertCallout
                               onConvert={() =>
                                 openConvert(
                                   m.text,
-                                  m.intent!.keyword,
-                                  m.intent!.cleanedTitle,
+                                  liveIntent.keyword,
+                                  liveIntent.cleanedTitle,
                                   m.id,
+                                  m.mine ? undefined : senderToAssigneeId(m.from) ?? undefined,
                                 )
                               }
                               onDismiss={() => dismissMessage(m.id)}
@@ -648,6 +694,25 @@ const ChatPage = () => {
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
+                  {isManager && !draft.trim() && !tipDismissed && (
+                    <div className="mb-2 flex items-center gap-2 text-[11px] text-muted-foreground px-1">
+                      <Sparkles className="size-3 text-primary/70 shrink-0" />
+                      <span className="flex-1">
+                        Tip: messages with verbs like <span className="font-medium">visit</span>,{" "}
+                        <span className="font-medium">deliver</span>,{" "}
+                        <span className="font-medium">pick up</span>,{" "}
+                        <span className="font-medium">take</span> can be turned into tasks.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={dismissTip}
+                        className="text-muted-foreground/70 hover:text-foreground"
+                        aria-label="Dismiss tip"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                   {isManager && draftIntent.isTask && !chipDismissed && (
                     <div className="mb-2 flex">
                       <SuggestionChip

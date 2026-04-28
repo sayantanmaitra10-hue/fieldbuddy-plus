@@ -1,38 +1,67 @@
-## Fix — Manager → Field employee direct chat entry points
+## Epic 9 — Loophole audit & fixes
 
-**Problem:** In the current build, managers can only open chats that already exist (task threads + channels seeded in `ChatPage`). There's no affordance to start a 1:1 conversation with a specific field employee, so the manager cannot initiate a chat from the Team page or Employee detail.
+After reviewing the chat → task → workload → reassignment flow end-to-end (and the session where you typed *"can you go and take the stock"* and nothing happened), I found four real loopholes. None are showstoppers individually, but together they make Epic 9 feel inert.
 
-### Solution
+### Loophole 1 — Intent keyword list is too narrow (the one you just hit)
 
-Add **"Message"** buttons on the Team grid and Employee detail header that deep-link into `ChatPage` and open (or create on the fly) a direct thread with that employee.
+`detectIntent` only matches: `visit, check, deliver, install, call, inspect, collect`. Natural manager phrasings like:
+- "go and **take** the stock"
+- "**pick up** the package"
+- "**drop** the invoice at"
+- "**bring** the sample"
+- "**meet** the client"
+- "**fix** the terminal"
+- "**verify** the count"
+- "**handover** the keys"
+- "**update** the display"
+- "**survey** the floor"
 
-### Changes
+…all silently fall through, so the "Convert to task" chip never appears. Result: managers think the feature is broken.
 
-**`src/pages/ChatPage.tsx`**
-- Extend `buildInitialThreads` to seed a **Direct messages** section: one thread per field employee for managers/admins (`id: "dm-{employeeId}"`, kind `"direct"`, title = employee name, subtitle = role, initials from name).
-- Add `"direct"` to the `Thread["kind"]` union and render a new **"Direct messages"** group in the sidebar (with a `User` icon header), shown above task threads.
-- When `?thread=dm-{employeeId}` is in the URL but not yet in state (e.g. role just switched or first visit), lazily create the thread from `employees` lookup so the deep-link always resolves.
-- `defaultAssigneeIdFor` updated: for `direct` threads, return the employee id parsed from the thread id — so converting a chat message to a task auto-assigns to that employee.
-- Reuse the existing send / smart-task / offline-sync logic unchanged — direct threads behave like task threads minus the auto-reply.
+**Fix:** expand `KEYWORDS` in `src/lib/smart-task.ts` to add `pick, pickup, drop, bring, meet, fix, verify, handover, update, survey, take, replace, audit, follow up`. Also match multi-word phrases (`pick up`, `follow up`) via a small phrase-match pass before the single-word regex. Add sensible `defaultHoursFor` entries for the new verbs (e.g. `pick/take/drop = 2h`, `meet = 1h`, `fix/replace = 5h`, `audit/survey = 6h`, `handover = 2h`, `verify/update = 2h`, `bring = 3h`, `follow up = 1h`).
 
-**`src/pages/Team.tsx`**
-- Add a small **"Message"** ghost button (MessageSquare icon) to each employee card, visible only when `role === "manager" | "admin"`. Clicking it `navigate("/app/chat?thread=dm-{e.id}")` and `e.stopPropagation()` so the card link still works for the rest of the card.
+### Loophole 2 — Deadline-extension math is wrong for seeded tasks
 
-**`src/pages/EmployeeDetail.tsx`**
-- Add a primary **"Message"** button in the header (next to the name block) for managers/admins, linking to `/app/chat?thread=dm-{id}`.
+In `TasksContext.setDeadline` the "task creation time" is reverse-engineered from the task id:
 
-**`src/components/TaskCard.tsx`** (small bonus, low risk)
-- If manager/admin viewing a task assigned to a field user, the existing chat icon already opens the task thread — no change needed. (Mention only so we don't accidentally duplicate.)
+```ts
+const created = Number(t.id.replace(/\D/g, "")) || Date.now();
+const baseMs = isFinite(created) && created > 1e12 ? created : Date.now();
+```
 
-### Visual spec
-- Team card button: ghost, `size="sm"`, `MessageSquare` icon + "Message" label, placed in the card footer right side or as an icon-only button top-right of the card depending on space (icon-only on mobile, label on desktop).
-- Employee detail button: `variant="default"`, gap-1.5, MessageSquare icon, sits in the header row.
-- Sidebar "Direct messages" group: same styling as existing "Channels" / "Task threads" headers, `User` lucide icon.
+For seeded tasks (`t1`, `t2`, …) `created = 1`, the `> 1e12` guard fails, and `baseMs` falls back to `Date.now()` — so "newHours" becomes "hours from now until new deadline" instead of "total task duration". A field user pushing `t1` from 5pm today to 5pm tomorrow gets flagged as extended, while pushing it 30 minutes only checks against right-now. Either way it's wrong.
 
-### Out of scope
-- Group DM creation / new-chat composer modal — the per-employee deep-link covers the immediate gap.
-- Persisting DM history across reloads (stays in-memory like the rest of the prototype).
-- Field-role view of DMs to other field employees — only manager→field is unblocked here, matching the reported issue.
+**Fix:** track an explicit `createdAt` ISO on every task. Backfill seed tasks with a creation timestamp ~24h before their deadline (or `Date.now() - defaultHours*1h`, whichever is earlier) and stamp `createdAt: new Date().toISOString()` in `addTask`. Use that field in `setDeadline` instead of parsing the id.
+
+### Loophole 3 — Convert-to-task callout doesn't appear on already-sent messages from field users
+
+The smart-task "Convert" callout only renders when `m.mine && isManager` (ChatPage line 571). That makes sense for things the manager types, but a manager reading an *incoming* field message like "I'll go check the Andheri site at 4pm" gets no affordance — even though that's a prime moment to spin off a follow-up task.
+
+**Fix:** also detect intent on inbound messages when the viewer is a manager. Render the callout under any message (mine or not) where intent is detected and not converted/dismissed. For inbound messages, default the assignee to the message sender (look up by name in `employees`, fall back to current `defaultAssigneeIdFor` logic).
+
+### Loophole 4 — Smart-task UX is invisible until you happen to type a keyword
+
+There's no in-product hint that chat can create tasks. New managers won't discover it.
+
+**Fix (small):** in the chat composer footer, when the input is empty and the user is a manager, show a one-line muted hint: *"Tip: messages with verbs like 'visit', 'deliver', 'pick up' can be turned into tasks."* Hides as soon as they start typing or after first dismiss (persisted in `localStorage`).
+
+### Bonus loophole — Extended-timeline alert dedup
+
+`setDeadline` pushes a new `extended_timeline` alert every time the deadline changes past threshold. Adjusting the deadline twice creates two alerts for the same task.
+
+**Fix:** before pushing, check if an unresolved `extended_timeline` alert already exists for this employee + task title; if so, replace its `time` instead of adding a duplicate.
 
 ### Files touched
-- **Edit:** `src/pages/ChatPage.tsx`, `src/pages/Team.tsx`, `src/pages/EmployeeDetail.tsx`
+
+- **Edit** `src/lib/smart-task.ts` — expand `KEYWORDS`, add phrase matcher, extend `defaultHoursFor`.
+- **Edit** `src/lib/mock-data.ts` — add `createdAt` to `Task` interface and backfill seed tasks.
+- **Edit** `src/context/TasksContext.tsx` — use `createdAt` in `setDeadline`; stamp it in `addTask`; dedupe extended-timeline alerts.
+- **Edit** `src/pages/ChatPage.tsx` — detect intent on inbound messages for managers; render callout for non-mine messages with sender-based default assignee; add empty-state composer tip.
+
+### Out of scope
+
+- Real NLP / AI gateway swap-in (still rule-based per epic plan).
+- Persisting chat threads across reloads.
+- Auto-resolving extended-timeline alerts when the deadline is later shortened back under threshold.
+
+After approval I'll implement all four fixes in one pass and verify the "take the stock" message now surfaces a Convert chip.

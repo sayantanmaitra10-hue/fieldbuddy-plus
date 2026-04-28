@@ -8,9 +8,27 @@ export const KEYWORDS = [
   "call",
   "inspect",
   "collect",
+  "pick",
+  "pickup",
+  "drop",
+  "bring",
+  "meet",
+  "fix",
+  "verify",
+  "handover",
+  "update",
+  "survey",
+  "take",
+  "replace",
+  "audit",
+  "follow up",
+  "follow-up",
 ] as const;
 
 export type SmartKeyword = (typeof KEYWORDS)[number];
+
+// Multi-word phrases checked before single-word matches
+const PHRASES: SmartKeyword[] = ["follow up", "follow-up", "pickup"];
 
 export const EXTENDED_THRESHOLD = 1.5;
 
@@ -52,10 +70,15 @@ export function detectIntent(text: string): IntentResult {
   const trimmed = text.trim();
   if (!trimmed) return { isTask: false, cleanedTitle: "" };
   const lower = trimmed.toLowerCase();
-  const matched = KEYWORDS.find((k) =>
-    new RegExp(`\\b${k}\\b`, "i").test(lower),
-  );
   const cleaned = capitalise(stripLeading(trimmed).replace(/[.!?]+$/g, ""));
+  // Phrase pass first (multi-word wins over a substring single-word)
+  const phrase = PHRASES.find((p) =>
+    new RegExp(`\\b${p.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}\\b`, "i").test(lower),
+  );
+  if (phrase) return { isTask: true, keyword: phrase, cleanedTitle: cleaned };
+  const matched = KEYWORDS.find(
+    (k) => !PHRASES.includes(k) && new RegExp(`\\b${k}\\b`, "i").test(lower),
+  );
   if (!matched) return { isTask: false, cleanedTitle: cleaned };
   return { isTask: true, keyword: matched, cleanedTitle: cleaned };
 }
@@ -63,13 +86,30 @@ export function detectIntent(text: string): IntentResult {
 export function defaultHoursFor(keyword?: SmartKeyword | string): number {
   switch (keyword) {
     case "call":
+    case "meet":
+    case "follow up":
+    case "follow-up":
       return 1;
+    case "pick":
+    case "pickup":
+    case "take":
+    case "drop":
+    case "handover":
+    case "verify":
+    case "update":
+      return 2;
     case "check":
     case "inspect":
+    case "bring":
       return 3;
     case "collect":
       return 4;
+    case "fix":
+    case "replace":
+      return 5;
     case "visit":
+    case "audit":
+    case "survey":
       return 6;
     case "deliver":
     case "install":

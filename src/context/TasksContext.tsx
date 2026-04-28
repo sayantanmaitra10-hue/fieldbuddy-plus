@@ -67,6 +67,7 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
       assignee: assignee?.name ?? "—",
       location: assignee?.location ?? "—",
       deadline: input.deadline,
+      createdAt: new Date().toISOString(),
       proof: [],
       messages: [],
       source: input.source ?? "manual",
@@ -114,8 +115,9 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         prev.map((t) => {
           if (t.id !== id) return t;
           const def = t.defaultHours ?? defaultHoursFor();
-          const created = Number(t.id.replace(/\D/g, "")) || Date.now();
-          const baseMs = isFinite(created) && created > 1e12 ? created : Date.now();
+          const baseMs = t.createdAt
+            ? new Date(t.createdAt).getTime()
+            : Date.now();
           const newHours = (new Date(iso).getTime() - baseMs) / (1000 * 60 * 60);
           extended = isExtended(Math.max(0.1, newHours), def);
           resultTask = { ...t, deadline: iso, extendedTimeline: extended };
@@ -123,18 +125,40 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         }),
       );
       if (resultTask && extended) {
-        pushAlert({
-          type: "extended_timeline",
-          severity: "medium",
-          employee: resultTask.assignee,
-          message: `Deadline for "${resultTask.title}" extended beyond ${Math.round(
-            (resultTask.defaultHours ?? 4) * 1.5,
-          )}h recommended limit`,
+        const taskTitle = resultTask.title;
+        const employeeName = resultTask.assignee;
+        // Dedupe: if an unresolved extended_timeline alert already exists for
+        // this employee+task, refresh its time instead of pushing a duplicate.
+        setAlerts((prev) => {
+          const existingIdx = prev.findIndex(
+            (a) =>
+              a.type === "extended_timeline" &&
+              a.employee === employeeName &&
+              a.message.includes(`"${taskTitle}"`),
+          );
+          if (existingIdx >= 0) {
+            const next = [...prev];
+            next[existingIdx] = { ...next[existingIdx], time: justNow() };
+            return next;
+          }
+          return [
+            {
+              id: `a-${Date.now()}`,
+              type: "extended_timeline",
+              severity: "medium",
+              employee: employeeName,
+              message: `Deadline for "${taskTitle}" extended beyond ${Math.round(
+                (resultTask!.defaultHours ?? 4) * 1.5,
+              )}h recommended limit`,
+              time: justNow(),
+            },
+            ...prev,
+          ];
         });
       }
       return resultTask ? { extended, task: resultTask } : undefined;
     },
-    [pushAlert],
+    [],
   );
 
   const pendingFor = useCallback(

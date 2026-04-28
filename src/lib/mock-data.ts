@@ -18,6 +18,7 @@ export interface Task {
   sourceThreadId?: string;
   defaultHours?: number;
   extendedTimeline?: boolean;
+  createdAt?: string; // ISO — used to compute total task duration when adjusting deadlines
 }
 
 export interface Employee {
@@ -52,6 +53,10 @@ export const employees: Employee[] = [
   { id: "e6", name: "Divya Nair", role: "Field Executive", avatar: "DN", checkedIn: true, checkInTime: "08:55", zone: "valid", lastActivity: "20 min ago", tasksAssigned: 5, tasksCompleted: 2, location: "Goregaon, Mumbai" },
 ];
 
+// Helper: createdAt = deadline - 24h, so initial duration = 24h for all seeds.
+const seedCreatedAt = (deadlineIso: string) =>
+  new Date(new Date(deadlineIso).getTime() - 24 * 60 * 60 * 1000).toISOString();
+
 export const tasks: Task[] = [
   {
     id: "t1",
@@ -59,6 +64,7 @@ export const tasks: Task[] = [
     description: "Complete dimensional survey of new retail floor. Capture wall measurements, electrical points, and HVAC layout.",
     assignee: "Arjun Mehta", assigneeId: "e1",
     deadline: "2026-04-22T17:00:00",
+    createdAt: seedCreatedAt("2026-04-22T17:00:00"),
     status: "in_progress",
     location: "Linking Road, Bandra W",
     priority: "high",
@@ -74,6 +80,7 @@ export const tasks: Task[] = [
     description: "Install POS terminals at counter 3 & 4. Verify network handshake.",
     assignee: "Arjun Mehta", assigneeId: "e1",
     deadline: "2026-04-22T14:00:00",
+    createdAt: seedCreatedAt("2026-04-22T14:00:00"),
     status: "pending",
     location: "Infinity Mall, Andheri W",
     priority: "medium",
@@ -86,6 +93,7 @@ export const tasks: Task[] = [
     description: "Walk client through deployed setup. Capture sign-off photo.",
     assignee: "Arjun Mehta", assigneeId: "e1",
     deadline: "2026-04-21T18:00:00",
+    createdAt: seedCreatedAt("2026-04-21T18:00:00"),
     status: "completed",
     location: "Hiranandani Gardens",
     priority: "high",
@@ -100,6 +108,7 @@ export const tasks: Task[] = [
     description: "Spot-count items against system. Flag mismatches.",
     assignee: "Karan Patel", assigneeId: "e5",
     deadline: "2026-04-22T16:00:00",
+    createdAt: seedCreatedAt("2026-04-22T16:00:00"),
     status: "in_progress",
     location: "Phoenix Mills",
     priority: "medium",
@@ -112,6 +121,7 @@ export const tasks: Task[] = [
     description: "Quarterly preventive maintenance on rooftop unit.",
     assignee: "Arjun Mehta", assigneeId: "e1",
     deadline: "2026-04-22T12:00:00",
+    createdAt: seedCreatedAt("2026-04-22T12:00:00"),
     status: "pending",
     location: "Oberoi Mall",
     priority: "low",
