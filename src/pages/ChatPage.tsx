@@ -588,8 +588,20 @@ const ChatPage = () => {
                         </div>
                       );
                     }
+                    // Compute intent on-the-fly for inbound messages so seeded/auto-reply
+                    // text also surfaces a Convert callout to managers.
+                    const liveIntent =
+                      m.intent ??
+                      (isManager && !m.mine && m.text
+                        ? (() => {
+                            const r = detectIntent(m.text);
+                            return r.isTask && r.keyword
+                              ? { keyword: r.keyword, cleanedTitle: r.cleanedTitle }
+                              : undefined;
+                          })()
+                        : undefined);
                     const showCallout =
-                      isManager && m.mine && m.intent && !m.converted && !m.dismissed;
+                      isManager && !!liveIntent && !m.converted && !m.dismissed;
                     return (
                       <div key={m.id} className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}>
                         <div className={cn("flex gap-2 w-full", m.mine ? "justify-end" : "justify-start")}>
@@ -648,15 +660,16 @@ const ChatPage = () => {
                             </div>
                           </div>
                         </div>
-                        {showCallout && (
+                        {showCallout && liveIntent && (
                           <div className="max-w-[78%] mt-1">
                             <ConvertCallout
                               onConvert={() =>
                                 openConvert(
                                   m.text,
-                                  m.intent!.keyword,
-                                  m.intent!.cleanedTitle,
+                                  liveIntent.keyword,
+                                  liveIntent.cleanedTitle,
                                   m.id,
+                                  m.mine ? undefined : senderToAssigneeId(m.from) ?? undefined,
                                 )
                               }
                               onDismiss={() => dismissMessage(m.id)}
