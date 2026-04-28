@@ -262,11 +262,16 @@ const ChatPage = () => {
     // simulate teammate auto-reply on channels (only when online)
     if (active.kind === "channel" && online) {
       setTimeout(() => {
+        const replyText = "Got it 👍";
+        const replyIntent = detectIntent(replyText);
         const reply: Message = {
           id: `m-${Date.now()}-r`,
           from: "Priya Sharma",
-          text: "Got it 👍",
+          text: replyText,
           time: nowTime(),
+          intent: replyIntent.isTask && replyIntent.keyword
+            ? { keyword: replyIntent.keyword, cleanedTitle: replyIntent.cleanedTitle }
+            : undefined,
         };
         setThreads((prev) =>
           prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
@@ -283,18 +288,28 @@ const ChatPage = () => {
         role === "field"
           ? "Thanks for the update — keep me posted."
           : "On it, will update you shortly.";
+      const replyIntent = detectIntent(replyText);
       setTimeout(() => {
         const reply: Message = {
           id: `m-${Date.now()}-r`,
           from: replyFrom,
           text: replyText,
           time: nowTime(),
+          intent: replyIntent.isTask && replyIntent.keyword
+            ? { keyword: replyIntent.keyword, cleanedTitle: replyIntent.cleanedTitle }
+            : undefined,
         };
         setThreads((prev) =>
           prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, reply] } : t)),
         );
       }, 1400);
     }
+  };
+
+  // Map an inbound message sender name to an employee id, falling back to thread default
+  const senderToAssigneeId = (fromName: string): string | null => {
+    const e = employees.find((x) => x.name === fromName);
+    return e?.id ?? null;
   };
 
   const defaultAssigneeIdFor = (thread?: Thread): string => {
