@@ -694,6 +694,25 @@ const ChatPage = () => {
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
+                  {isManager && !draft.trim() && !tipDismissed && (
+                    <div className="mb-2 flex items-center gap-2 text-[11px] text-muted-foreground px-1">
+                      <Sparkles className="size-3 text-primary/70 shrink-0" />
+                      <span className="flex-1">
+                        Tip: messages with verbs like <span className="font-medium">visit</span>,{" "}
+                        <span className="font-medium">deliver</span>,{" "}
+                        <span className="font-medium">pick up</span>,{" "}
+                        <span className="font-medium">take</span> can be turned into tasks.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={dismissTip}
+                        className="text-muted-foreground/70 hover:text-foreground"
+                        aria-label="Dismiss tip"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
                   {isManager && draftIntent.isTask && !chipDismissed && (
                     <div className="mb-2 flex">
                       <SuggestionChip
