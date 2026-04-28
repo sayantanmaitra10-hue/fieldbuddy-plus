@@ -327,10 +327,16 @@ const ChatPage = () => {
     return first?.id ?? "e1";
   };
 
-  const openConvert = (sourceText: string, keyword: string | undefined, cleanedTitle: string, sourceMsgId: string | null) => {
+  const openConvert = (
+    sourceText: string,
+    keyword: string | undefined,
+    cleanedTitle: string,
+    sourceMsgId: string | null,
+    assigneeIdOverride?: string,
+  ) => {
     setPreviewDraft({
       title: cleanedTitle || sourceText,
-      assigneeId: defaultAssigneeIdFor(active),
+      assigneeId: assigneeIdOverride ?? defaultAssigneeIdFor(active),
       hours: defaultHoursFor(keyword as any),
       priority: "medium",
       keyword: keyword as any,
