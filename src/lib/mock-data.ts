@@ -18,6 +18,7 @@ export interface Task {
   sourceThreadId?: string;
   defaultHours?: number;
   extendedTimeline?: boolean;
+  createdAt?: string; // ISO — used to compute total task duration when adjusting deadlines
 }
 
 export interface Employee {
