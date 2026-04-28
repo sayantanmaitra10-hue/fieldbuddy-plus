@@ -177,6 +177,18 @@ const ChatPage = () => {
   const [previewDraft, setPreviewDraft] = useState<SmartTaskDraft | null>(null);
   const [previewSourceMsgId, setPreviewSourceMsgId] = useState<string | null>(null);
   const [chipDismissed, setChipDismissed] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("smart-task-tip-dismissed") === "1";
+  });
+  const dismissTip = () => {
+    setTipDismissed(true);
+    try {
+      window.localStorage.setItem("smart-task-tip-dismissed", "1");
+    } catch {
+      /* noop */
+    }
+  };
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
