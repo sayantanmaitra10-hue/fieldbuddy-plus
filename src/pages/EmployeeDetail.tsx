@@ -1,16 +1,18 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
-import { employees, tasks } from "@/lib/mock-data";
+import { employees } from "@/lib/mock-data";
 import { TaskCard } from "@/components/TaskCard";
 import { StatusPill } from "@/components/StatusPill";
 import { Button } from "@/components/ui/button";
 import { MapPin, MessageSquare } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
+import { useTasks } from "@/context/TasksContext";
 
 const EmployeeDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { role } = useRole();
+  const { tasks } = useTasks();
   const e = employees.find((x) => x.id === id);
   if (!e) return <div className="p-8">Not found</div>;
   const myTasks = tasks.filter((t) => t.assigneeId === e.id);
