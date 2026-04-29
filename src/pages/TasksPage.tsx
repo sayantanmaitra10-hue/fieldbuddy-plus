@@ -179,6 +179,33 @@ const TasksPage = () => {
 
   const errorCount = Object.keys(form.formState.errors).length;
 
+  const exportCsv = () => {
+    if (visible.length === 0) {
+      toast({ title: "Nothing to export", description: "No tasks match the current filters." });
+      return;
+    }
+    const headers = ["ID", "Title", "Status", "Priority", "Assignee", "Deadline", "Source", "Description"];
+    const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = visible.map((t) => {
+      const assignee = employees.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
+      return [t.id, t.title, t.status, t.priority, assignee, t.deadline, t.source ?? "manual", t.description ?? ""]
+        .map(escape)
+        .join(",");
+    });
+    const csv = [headers.map(escape).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = format(new Date(), "yyyyMMdd-HHmm");
+    a.href = url;
+    a.download = `tasks-${active.toLowerCase().replace(" ", "-")}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "Exported", description: `${visible.length} task${visible.length === 1 ? "" : "s"} exported to CSV.` });
+  };
+
   return (
     <>
       <Topbar title="Tasks" subtitle={role === "field" ? "Your assignments" : "All field operations"} />
