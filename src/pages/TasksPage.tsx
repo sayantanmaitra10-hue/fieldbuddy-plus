@@ -9,7 +9,7 @@ import { employees, type Task } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
 import { useSync } from "@/context/SyncContext";
 import { useTasks } from "@/context/TasksContext";
-import { Plus, Search, CalendarIcon, AlertCircle } from "lucide-react";
+import { Plus, Search, CalendarIcon, AlertCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
