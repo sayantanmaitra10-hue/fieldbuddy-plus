@@ -220,6 +220,13 @@ const TasksPage = () => {
               className="pl-9 bg-card"
             />
           </div>
+          <Button
+            variant="outline"
+            onClick={exportCsv}
+            aria-label="Export tasks to CSV"
+          >
+            <Download className="size-4 mr-1.5" /> Export CSV
+          </Button>
           {role !== "field" && (
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
