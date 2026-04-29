@@ -184,15 +184,41 @@ const TasksPage = () => {
       toast({ title: "Nothing to export", description: "No tasks match the current filters." });
       return;
     }
-    const headers = ["ID", "Title", "Status", "Priority", "Assignee", "Deadline", "Source", "Description"];
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    // Excel-friendly local datetime: "yyyy-MM-dd HH:mm:ss" (no T, no Z) — Excel parses as a real date.
+    const fmtLocal = (iso?: string) => (iso ? format(new Date(iso), "yyyy-MM-dd HH:mm:ss") : "");
+    const fmtUtc = (iso?: string) => (iso ? new Date(iso).toISOString() : "");
+
+    const headers = [
+      "ID",
+      "Title",
+      "Status",
+      "Priority",
+      "Assignee",
+      `Deadline (Local ${tz})`,
+      "Deadline (UTC ISO 8601)",
+      "Source",
+      "Description",
+    ];
     const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = visible.map((t) => {
       const assignee = employees.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
-      return [t.id, t.title, t.status, t.priority, assignee, t.deadline, t.source ?? "manual", t.description ?? ""]
+      return [
+        t.id,
+        t.title,
+        t.status,
+        t.priority,
+        assignee,
+        fmtLocal(t.deadline),
+        fmtUtc(t.deadline),
+        t.source ?? "manual",
+        t.description ?? "",
+      ]
         .map(escape)
         .join(",");
     });
-    const csv = [headers.map(escape).join(","), ...rows].join("\n");
+    // Prepend UTF-8 BOM so Excel opens it with correct encoding.
+    const csv = "\uFEFF" + [headers.map(escape).join(","), ...rows].join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -203,7 +229,10 @@ const TasksPage = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast({ title: "Exported", description: `${visible.length} task${visible.length === 1 ? "" : "s"} exported to CSV.` });
+    toast({
+      title: "Exported",
+      description: `${visible.length} task${visible.length === 1 ? "" : "s"} exported · times in ${tz} + UTC.`,
+    });
   };
 
   return (
