@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Loader2, Phone, ShieldCheck } from "lucide-react";
+import { Loader2, Mail, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +12,8 @@ import { useAuth } from "@/context/AuthContext";
 const Auth = () => {
   const navigate = useNavigate();
   const { session, loading } = useAuth();
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [phone, setPhone] = useState("+91");
+  const [step, setStep] = useState<"email" | "otp">("email");
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -22,19 +22,22 @@ const Auth = () => {
   }, [session, loading, navigate]);
 
   const sendOtp = async () => {
-    if (!/^\+\d{10,15}$/.test(phone)) {
-      toast({ title: "Invalid phone", description: "Use international format, e.g. +919876543210", variant: "destructive" });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: "Invalid email", description: "Enter a valid email address", variant: "destructive" });
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.signInWithOtp({ phone });
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/app` },
+    });
     setBusy(false);
     if (error) {
       toast({ title: "Could not send code", description: error.message, variant: "destructive" });
       return;
     }
     setStep("otp");
-    toast({ title: "Code sent", description: `We texted a 6-digit code to ${phone}` });
+    toast({ title: "Code sent", description: `We emailed a 6-digit code to ${email}` });
   };
 
   const verifyOtp = async () => {
@@ -43,7 +46,7 @@ const Auth = () => {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.verifyOtp({ phone, token: otp, type: "sms" });
+    const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
     setBusy(false);
     if (error) {
       toast({ title: "Verification failed", description: error.message, variant: "destructive" });
@@ -71,23 +74,23 @@ const Auth = () => {
           </div>
         </div>
 
-        {step === "phone" ? (
+        {step === "email" ? (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone number</Label>
+              <Label htmlFor="email">Email address</Label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
                 <Input
-                  id="phone"
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+919876543210"
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
                   className="pl-9"
                   autoFocus
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">Include country code. We'll text a 6-digit code.</p>
+              <p className="text-[11px] text-muted-foreground">We'll email you a 6-digit code.</p>
             </div>
             <Button onClick={sendOtp} disabled={busy} className="w-full">
               {busy ? <Loader2 className="size-4 animate-spin" /> : "Send code"}
@@ -106,16 +109,16 @@ const Auth = () => {
                 placeholder="123456"
                 autoFocus
               />
-              <p className="text-[11px] text-muted-foreground">Sent to {phone}</p>
+              <p className="text-[11px] text-muted-foreground">Sent to {email}</p>
             </div>
             <Button onClick={verifyOtp} disabled={busy} className="w-full">
               {busy ? <Loader2 className="size-4 animate-spin" /> : "Verify & sign in"}
             </Button>
             <button
-              onClick={() => { setStep("phone"); setOtp(""); }}
+              onClick={() => { setStep("email"); setOtp(""); }}
               className="w-full text-xs text-muted-foreground hover:text-foreground"
             >
-              ← Use a different number
+              ← Use a different email
             </button>
           </div>
         )}
