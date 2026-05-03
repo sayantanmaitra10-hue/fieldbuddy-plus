@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Loader2, Mail, ShieldCheck } from "lucide-react";
+import { Loader2, Mail, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,16 +12,15 @@ import { useAuth } from "@/context/AuthContext";
 const Auth = () => {
   const navigate = useNavigate();
   const { session, loading } = useAuth();
-  const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
 
   useEffect(() => {
     if (!loading && session) navigate("/app", { replace: true });
   }, [session, loading, navigate]);
 
-  const sendOtp = async () => {
+  const sendLink = async () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast({ title: "Invalid email", description: "Enter a valid email address", variant: "destructive" });
       return;
@@ -33,27 +32,11 @@ const Auth = () => {
     });
     setBusy(false);
     if (error) {
-      toast({ title: "Could not send code", description: error.message, variant: "destructive" });
+      toast({ title: "Could not send link", description: error.message, variant: "destructive" });
       return;
     }
-    setStep("otp");
-    toast({ title: "Code sent", description: `We emailed a 6-digit code to ${email}` });
-  };
-
-  const verifyOtp = async () => {
-    if (otp.length < 6) {
-      toast({ title: "Enter the 6-digit code", variant: "destructive" });
-      return;
-    }
-    setBusy(true);
-    const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
-    setBusy(false);
-    if (error) {
-      toast({ title: "Verification failed", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Welcome", description: "You're signed in." });
-    navigate("/app", { replace: true });
+    setSent(true);
+    toast({ title: "Check your inbox", description: `We emailed a sign-in link to ${email}` });
   };
 
   return (
@@ -74,7 +57,26 @@ const Auth = () => {
           </div>
         </div>
 
-        {step === "email" ? (
+        {sent ? (
+          <div className="space-y-4 text-center py-2">
+            <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="size-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-medium">Link sent</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                We emailed a sign-in link to <span className="text-foreground">{email}</span>.
+                Open it on this device to continue.
+              </p>
+            </div>
+            <button
+              onClick={() => { setSent(false); }}
+              className="w-full text-xs text-muted-foreground hover:text-foreground"
+            >
+              ← Use a different email
+            </button>
+          </div>
+        ) : (
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email address</Label>
@@ -85,41 +87,17 @@ const Auth = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendLink()}
                   placeholder="you@company.com"
                   className="pl-9"
                   autoFocus
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">We'll email you a 6-digit code.</p>
+              <p className="text-[11px] text-muted-foreground">We'll email you a one-tap sign-in link.</p>
             </div>
-            <Button onClick={sendOtp} disabled={busy} className="w-full">
-              {busy ? <Loader2 className="size-4 animate-spin" /> : "Send code"}
+            <Button onClick={sendLink} disabled={busy} className="w-full">
+              {busy ? <Loader2 className="size-4 animate-spin" /> : "Send sign-in link"}
             </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="otp">Verification code</Label>
-              <Input
-                id="otp"
-                inputMode="numeric"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                placeholder="123456"
-                autoFocus
-              />
-              <p className="text-[11px] text-muted-foreground">Sent to {email}</p>
-            </div>
-            <Button onClick={verifyOtp} disabled={busy} className="w-full">
-              {busy ? <Loader2 className="size-4 animate-spin" /> : "Verify & sign in"}
-            </Button>
-            <button
-              onClick={() => { setStep("email"); setOtp(""); }}
-              className="w-full text-xs text-muted-foreground hover:text-foreground"
-            >
-              ← Use a different email
-            </button>
           </div>
         )}
       </motion.div>
