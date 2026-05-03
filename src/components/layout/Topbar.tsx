@@ -4,7 +4,7 @@ import { Wifi, WifiOff, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export const Topbar = ({ title, subtitle }: { title: string; subtitle?: string }) => {
-  const { role, setRole } = useRole();
+  const { role, setRole, availableRoles, canSwitch } = useRole();
   const { online, setOnline, queue } = useSync();
 
   return (
@@ -25,19 +25,21 @@ export const Topbar = ({ title, subtitle }: { title: string; subtitle?: string }
             {online ? "Online" : `Offline · ${queue.length} queued`}
           </button>
 
-          <div className="lg:hidden flex items-center gap-1 p-0.5 bg-muted rounded-md text-xs">
-            {(["field", "manager"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRole(r)}
-                className={`px-2.5 py-1 rounded capitalize font-medium transition-colors ${
-                  role === r ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+          {canSwitch && (
+            <div className="lg:hidden flex items-center gap-1 p-0.5 bg-muted rounded-md text-xs">
+              {availableRoles.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRole(r)}
+                  className={`px-2.5 py-1 rounded capitalize font-medium transition-colors ${
+                    role === r ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
 
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="size-4" />

@@ -18,7 +18,7 @@ const managerNav: NavItem[] = [
 ];
 
 export const Sidebar = () => {
-  const { role, setRole } = useRole();
+  const { role, setRole, availableRoles, canSwitch } = useRole();
   const items = role === "field" ? fieldNav : managerNav;
   const location = useLocation();
 
@@ -64,23 +64,30 @@ export const Sidebar = () => {
       </div>
 
       <div className="mt-auto p-3 border-t border-sidebar-border space-y-2">
-        <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/50">View as</div>
-        <div className="grid grid-cols-2 gap-1 p-1 bg-sidebar-accent/40 rounded-lg">
-          {(["field", "manager"] as const).map((r) => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={cn(
-                "py-1.5 text-xs rounded-md font-medium capitalize transition-all",
-                role === r
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                  : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
-              )}
+        {canSwitch && (
+          <>
+            <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/50">View as</div>
+            <div
+              className="grid gap-1 p-1 bg-sidebar-accent/40 rounded-lg"
+              style={{ gridTemplateColumns: `repeat(${availableRoles.length}, minmax(0, 1fr))` }}
             >
-              {r}
-            </button>
-          ))}
-        </div>
+              {availableRoles.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRole(r)}
+                  className={cn(
+                    "py-1.5 text-xs rounded-md font-medium capitalize transition-all",
+                    role === r
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                      : "text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                  )}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <div className="flex items-center gap-3 px-2 pt-2">
           <div className="size-9 rounded-full bg-accent text-accent-foreground grid place-items-center text-xs font-semibold">AM</div>
           <div className="flex-1 min-w-0">
