@@ -34,12 +34,9 @@ const ALL_ROLES: Role[] = ["field", "manager"];
 export const RoleProvider = ({ children }: { children: ReactNode }) => {
   const { roles: assignedRoles, loading } = useAuth();
 
-  // Admins can view both field & manager surfaces. Otherwise only the roles they hold.
-  const availableRoles = useMemo<Role[]>(() => {
-    if ((assignedRoles as string[]).includes("admin")) return ALL_ROLES;
-    const allowed = ALL_ROLES.filter((r) => assignedRoles.includes(r));
-    return allowed.length > 0 ? allowed : ["field"];
-  }, [assignedRoles]);
+  // Demo: every signed-in user can preview both the field and manager surfaces.
+  // Real permission enforcement still happens via useAuth().roles on protected routes.
+  const availableRoles = useMemo<Role[]>(() => ALL_ROLES, []);
 
   const [activeRole, setActiveRoleState] = useState<Role>(() => {
     if (typeof window === "undefined") return "field";
