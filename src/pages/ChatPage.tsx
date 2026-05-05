@@ -730,7 +730,7 @@ const ChatPage = () => {
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
-                  {isManager && !draft.trim() && !tipDismissed && (
+                  {canConvert && !draft.trim() && !tipDismissed && (
                     <div className="mb-2 flex items-center gap-2 text-[11px] text-muted-foreground px-1">
                       <Sparkles className="size-3 text-primary/70 shrink-0" />
                       <span className="flex-1">
@@ -749,17 +749,20 @@ const ChatPage = () => {
                       </button>
                     </div>
                   )}
-                  {isManager && draftIntent.isTask && !chipDismissed && (
-                    <div className="mb-2 flex">
-                      <SuggestionChip
-                        keyword={draftIntent.keyword!}
-                        onConvert={() =>
-                          openConvert(draft, draftIntent.keyword, draftIntent.cleanedTitle, null)
-                        }
-                        onDismiss={() => setChipDismissed(true)}
-                      />
-                    </div>
-                  )}
+                  {canConvert &&
+                    draftIntent.isTask &&
+                    !chipDismissed &&
+                    !convertedDrafts.has(draft.trim()) && (
+                      <div className="mb-2 flex">
+                        <SuggestionChip
+                          keyword={draftIntent.keyword!}
+                          onConvert={() =>
+                            openConvert(draft, draftIntent.keyword, draftIntent.cleanedTitle, null)
+                          }
+                          onDismiss={() => setChipDismissed(true)}
+                        />
+                      </div>
+                    )}
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
