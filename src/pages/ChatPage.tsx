@@ -640,7 +640,7 @@ const ChatPage = () => {
                     // text also surfaces a Convert callout to managers.
                     const liveIntent =
                       m.intent ??
-                      (isManager && !m.mine && m.text
+                      (canConvert && !m.mine && m.text
                         ? (() => {
                             const r = detectIntent(m.text);
                             return r.isTask && r.keyword
@@ -649,7 +649,7 @@ const ChatPage = () => {
                           })()
                         : undefined);
                     const showCallout =
-                      isManager && !!liveIntent && !m.converted && !m.dismissed;
+                      canConvert && !!liveIntent && !m.converted && !m.dismissed;
                     return (
                       <div key={m.id} className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}>
                         <div className={cn("flex gap-2 w-full", m.mine ? "justify-end" : "justify-start")}>
