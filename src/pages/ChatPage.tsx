@@ -260,7 +260,7 @@ const ChatPage = () => {
     const pendingSyncId = !online
       ? enqueue({ kind: "message", label: `Message in ${active.title}` })
       : undefined;
-    const intent = isManager ? detectIntent(text) : { isTask: false, cleanedTitle: "" };
+    const intent = canConvert ? detectIntent(text) : { isTask: false, cleanedTitle: "" };
     const msg: Message = {
       id: `m-${Date.now()}`,
       from: "You",
