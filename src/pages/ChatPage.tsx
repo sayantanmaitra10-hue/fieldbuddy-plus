@@ -331,19 +331,26 @@ const ChatPage = () => {
     return e?.id ?? null;
   };
 
+  const selfFieldId = (): string => {
+    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
+    return first?.id ?? "e1";
+  };
+
   const defaultAssigneeIdFor = (thread?: Thread): string => {
-    if (!thread) return "e1";
+    if (!thread) return selfFieldId();
     if (thread.kind === "task") {
       const taskId = thread.id.replace(/^task-/, "");
       const t = seedTasks.find((x) => x.id === taskId);
       if (t) return t.assigneeId;
     }
     if (thread.kind === "direct") {
-      return thread.id.replace(/^dm-/, "");
+      // dm-manager (field-side) has no employee record → fall back to self.
+      const id = thread.id.replace(/^dm-/, "");
+      const exists = employees.find((e) => e.id === id);
+      if (exists) return exists.id;
+      return selfFieldId();
     }
-    // channel → first field employee
-    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
-    return first?.id ?? "e1";
+    return selfFieldId();
   };
 
   const openConvert = (
@@ -353,20 +360,30 @@ const ChatPage = () => {
     sourceMsgId: string | null,
     assigneeIdOverride?: string,
   ) => {
+    if (!active) return;
+    // Field users can only self-assign; managers/admins can pick anyone.
+    const assigneeId = isManager
+      ? assigneeIdOverride ?? defaultAssigneeIdFor(active)
+      : selfFieldId();
     setPreviewDraft({
       title: cleanedTitle || sourceText,
-      assigneeId: assigneeIdOverride ?? defaultAssigneeIdFor(active),
+      assigneeId,
       hours: defaultHoursFor(keyword as any),
       priority: "medium",
       keyword: keyword as any,
       sourceMessage: sourceText,
     });
     setPreviewSourceMsgId(sourceMsgId);
+    setPreviewThreadId(active.id);
     setPreviewOpen(true);
   };
 
   const handleConfirmTask = (d: SmartTaskDraft) => {
-    if (!active) return;
+    // Anchor to the thread the dialog opened on — user may have switched conversations.
+    const targetThreadId = previewThreadId ?? active?.id;
+    if (!targetThreadId) return;
+    if (submittingTask) return;
+    setSubmittingTask(true);
     const deadline = new Date(Date.now() + d.hours * 60 * 60 * 1000).toISOString();
     const newTask = addTask({
       title: d.title,
@@ -375,14 +392,13 @@ const ChatPage = () => {
       priority: d.priority,
       source: "chat",
       sourceMessageId: previewSourceMsgId ?? undefined,
-      sourceThreadId: active.id,
+      sourceThreadId: targetThreadId,
       keyword: d.keyword,
     });
-    // mark source message as converted
     if (previewSourceMsgId) {
       setThreads((prev) =>
         prev.map((t) =>
-          t.id === active.id
+          t.id === targetThreadId
             ? {
                 ...t,
                 messages: t.messages.map((m) =>
@@ -392,8 +408,19 @@ const ChatPage = () => {
             : t,
         ),
       );
+    } else {
+      // Composer-chip conversion — lock this exact text & clear the draft so the
+      // same message can't be converted twice in a row.
+      const snapshot = d.sourceMessage?.trim();
+      if (snapshot) {
+        setConvertedDrafts((prev) => {
+          const next = new Set(prev);
+          next.add(snapshot);
+          return next;
+        });
+      }
+      setDraft("");
     }
-    // append system message
     const systemMsg: Message = {
       id: `m-sys-${Date.now()}`,
       from: "System",
@@ -403,11 +430,13 @@ const ChatPage = () => {
       taskId: newTask.id,
     };
     setThreads((prev) =>
-      prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, systemMsg] } : t)),
+      prev.map((t) => (t.id === targetThreadId ? { ...t, messages: [...t.messages, systemMsg] } : t)),
     );
     setPreviewOpen(false);
     setPreviewDraft(null);
     setPreviewSourceMsgId(null);
+    setPreviewThreadId(null);
+    setSubmittingTask(false);
     toast({ title: "Task created", description: `${newTask.title} → ${newTask.assignee}` });
   };
 
