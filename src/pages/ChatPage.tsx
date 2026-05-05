@@ -822,9 +822,18 @@ const ChatPage = () => {
       </div>
       <SmartTaskPreviewDialog
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={(v) => {
+          if (submittingTask) return; // prevent dismissing mid-submit
+          setPreviewOpen(v);
+          if (!v) {
+            setPreviewDraft(null);
+            setPreviewSourceMsgId(null);
+            setPreviewThreadId(null);
+          }
+        }}
         initial={previewDraft}
         onConfirm={handleConfirmTask}
+        submitting={submittingTask}
       />
     </>
   );
