@@ -39,11 +39,13 @@ export const SmartTaskPreviewDialog = ({
   onOpenChange,
   initial,
   onConfirm,
+  submitting = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial: SmartTaskDraft | null;
   onConfirm: (draft: SmartTaskDraft) => void;
+  submitting?: boolean;
 }) => {
   const [draft, setDraft] = useState<SmartTaskDraft | null>(initial);
 
