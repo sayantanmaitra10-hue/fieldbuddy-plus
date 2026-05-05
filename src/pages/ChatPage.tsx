@@ -176,6 +176,11 @@ const ChatPage = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewDraft, setPreviewDraft] = useState<SmartTaskDraft | null>(null);
   const [previewSourceMsgId, setPreviewSourceMsgId] = useState<string | null>(null);
+  const [previewThreadId, setPreviewThreadId] = useState<string | null>(null);
+  const [submittingTask, setSubmittingTask] = useState(false);
+  // Text snapshots that have already been converted from the composer chip — prevents
+  // re-creating the same task by re-clicking Convert on identical draft text.
+  const [convertedDrafts, setConvertedDrafts] = useState<Set<string>>(new Set());
   const [chipDismissed, setChipDismissed] = useState(false);
   const [tipDismissed, setTipDismissed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -192,6 +197,8 @@ const ChatPage = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Field users can also convert chat content into self-assigned tasks.
+  const canConvert = role === "field" || role === "manager" || role === "admin";
   const isManager = role === "manager" || role === "admin";
   const draftIntent = useMemo(() => detectIntent(draft), [draft]);
 
