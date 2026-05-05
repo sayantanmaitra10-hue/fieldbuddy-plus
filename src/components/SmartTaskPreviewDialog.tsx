@@ -39,11 +39,13 @@ export const SmartTaskPreviewDialog = ({
   onOpenChange,
   initial,
   onConfirm,
+  submitting = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initial: SmartTaskDraft | null;
   onConfirm: (draft: SmartTaskDraft) => void;
+  submitting?: boolean;
 }) => {
   const [draft, setDraft] = useState<SmartTaskDraft | null>(initial);
 
@@ -152,17 +154,17 @@ export const SmartTaskPreviewDialog = ({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
             Cancel
           </Button>
           <Button
             onClick={() => {
-              if (draft.title.trim() && draft.assigneeId) onConfirm(draft);
+              if (draft.title.trim() && draft.assigneeId && !submitting) onConfirm(draft);
             }}
-            disabled={!draft.title.trim() || !draft.assigneeId}
+            disabled={!draft.title.trim() || !draft.assigneeId || submitting}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            Create task
+            {submitting ? "Creating…" : "Create task"}
           </Button>
         </DialogFooter>
       </DialogContent>

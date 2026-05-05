@@ -176,6 +176,11 @@ const ChatPage = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewDraft, setPreviewDraft] = useState<SmartTaskDraft | null>(null);
   const [previewSourceMsgId, setPreviewSourceMsgId] = useState<string | null>(null);
+  const [previewThreadId, setPreviewThreadId] = useState<string | null>(null);
+  const [submittingTask, setSubmittingTask] = useState(false);
+  // Text snapshots that have already been converted from the composer chip — prevents
+  // re-creating the same task by re-clicking Convert on identical draft text.
+  const [convertedDrafts, setConvertedDrafts] = useState<Set<string>>(new Set());
   const [chipDismissed, setChipDismissed] = useState(false);
   const [tipDismissed, setTipDismissed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -192,6 +197,8 @@ const ChatPage = () => {
   const fileRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Field users can also convert chat content into self-assigned tasks.
+  const canConvert = role === "field" || role === "manager" || role === "admin";
   const isManager = role === "manager" || role === "admin";
   const draftIntent = useMemo(() => detectIntent(draft), [draft]);
 
@@ -253,7 +260,7 @@ const ChatPage = () => {
     const pendingSyncId = !online
       ? enqueue({ kind: "message", label: `Message in ${active.title}` })
       : undefined;
-    const intent = isManager ? detectIntent(text) : { isTask: false, cleanedTitle: "" };
+    const intent = canConvert ? detectIntent(text) : { isTask: false, cleanedTitle: "" };
     const msg: Message = {
       id: `m-${Date.now()}`,
       from: "You",
@@ -324,19 +331,26 @@ const ChatPage = () => {
     return e?.id ?? null;
   };
 
+  const selfFieldId = (): string => {
+    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
+    return first?.id ?? "e1";
+  };
+
   const defaultAssigneeIdFor = (thread?: Thread): string => {
-    if (!thread) return "e1";
+    if (!thread) return selfFieldId();
     if (thread.kind === "task") {
       const taskId = thread.id.replace(/^task-/, "");
       const t = seedTasks.find((x) => x.id === taskId);
       if (t) return t.assigneeId;
     }
     if (thread.kind === "direct") {
-      return thread.id.replace(/^dm-/, "");
+      // dm-manager (field-side) has no employee record → fall back to self.
+      const id = thread.id.replace(/^dm-/, "");
+      const exists = employees.find((e) => e.id === id);
+      if (exists) return exists.id;
+      return selfFieldId();
     }
-    // channel → first field employee
-    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
-    return first?.id ?? "e1";
+    return selfFieldId();
   };
 
   const openConvert = (
@@ -346,20 +360,30 @@ const ChatPage = () => {
     sourceMsgId: string | null,
     assigneeIdOverride?: string,
   ) => {
+    if (!active) return;
+    // Field users can only self-assign; managers/admins can pick anyone.
+    const assigneeId = isManager
+      ? assigneeIdOverride ?? defaultAssigneeIdFor(active)
+      : selfFieldId();
     setPreviewDraft({
       title: cleanedTitle || sourceText,
-      assigneeId: assigneeIdOverride ?? defaultAssigneeIdFor(active),
+      assigneeId,
       hours: defaultHoursFor(keyword as any),
       priority: "medium",
       keyword: keyword as any,
       sourceMessage: sourceText,
     });
     setPreviewSourceMsgId(sourceMsgId);
+    setPreviewThreadId(active.id);
     setPreviewOpen(true);
   };
 
   const handleConfirmTask = (d: SmartTaskDraft) => {
-    if (!active) return;
+    // Anchor to the thread the dialog opened on — user may have switched conversations.
+    const targetThreadId = previewThreadId ?? active?.id;
+    if (!targetThreadId) return;
+    if (submittingTask) return;
+    setSubmittingTask(true);
     const deadline = new Date(Date.now() + d.hours * 60 * 60 * 1000).toISOString();
     const newTask = addTask({
       title: d.title,
@@ -368,14 +392,13 @@ const ChatPage = () => {
       priority: d.priority,
       source: "chat",
       sourceMessageId: previewSourceMsgId ?? undefined,
-      sourceThreadId: active.id,
+      sourceThreadId: targetThreadId,
       keyword: d.keyword,
     });
-    // mark source message as converted
     if (previewSourceMsgId) {
       setThreads((prev) =>
         prev.map((t) =>
-          t.id === active.id
+          t.id === targetThreadId
             ? {
                 ...t,
                 messages: t.messages.map((m) =>
@@ -385,8 +408,19 @@ const ChatPage = () => {
             : t,
         ),
       );
+    } else {
+      // Composer-chip conversion — lock this exact text & clear the draft so the
+      // same message can't be converted twice in a row.
+      const snapshot = d.sourceMessage?.trim();
+      if (snapshot) {
+        setConvertedDrafts((prev) => {
+          const next = new Set(prev);
+          next.add(snapshot);
+          return next;
+        });
+      }
+      setDraft("");
     }
-    // append system message
     const systemMsg: Message = {
       id: `m-sys-${Date.now()}`,
       from: "System",
@@ -396,11 +430,13 @@ const ChatPage = () => {
       taskId: newTask.id,
     };
     setThreads((prev) =>
-      prev.map((t) => (t.id === active.id ? { ...t, messages: [...t.messages, systemMsg] } : t)),
+      prev.map((t) => (t.id === targetThreadId ? { ...t, messages: [...t.messages, systemMsg] } : t)),
     );
     setPreviewOpen(false);
     setPreviewDraft(null);
     setPreviewSourceMsgId(null);
+    setPreviewThreadId(null);
+    setSubmittingTask(false);
     toast({ title: "Task created", description: `${newTask.title} → ${newTask.assignee}` });
   };
 
@@ -604,7 +640,7 @@ const ChatPage = () => {
                     // text also surfaces a Convert callout to managers.
                     const liveIntent =
                       m.intent ??
-                      (isManager && !m.mine && m.text
+                      (canConvert && !m.mine && m.text
                         ? (() => {
                             const r = detectIntent(m.text);
                             return r.isTask && r.keyword
@@ -613,7 +649,7 @@ const ChatPage = () => {
                           })()
                         : undefined);
                     const showCallout =
-                      isManager && !!liveIntent && !m.converted && !m.dismissed;
+                      canConvert && !!liveIntent && !m.converted && !m.dismissed;
                     return (
                       <div key={m.id} className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}>
                         <div className={cn("flex gap-2 w-full", m.mine ? "justify-end" : "justify-start")}>
@@ -694,7 +730,7 @@ const ChatPage = () => {
                 </div>
 
                 <footer className="border-t border-border bg-card p-3">
-                  {isManager && !draft.trim() && !tipDismissed && (
+                  {canConvert && !draft.trim() && !tipDismissed && (
                     <div className="mb-2 flex items-center gap-2 text-[11px] text-muted-foreground px-1">
                       <Sparkles className="size-3 text-primary/70 shrink-0" />
                       <span className="flex-1">
@@ -713,17 +749,20 @@ const ChatPage = () => {
                       </button>
                     </div>
                   )}
-                  {isManager && draftIntent.isTask && !chipDismissed && (
-                    <div className="mb-2 flex">
-                      <SuggestionChip
-                        keyword={draftIntent.keyword!}
-                        onConvert={() =>
-                          openConvert(draft, draftIntent.keyword, draftIntent.cleanedTitle, null)
-                        }
-                        onDismiss={() => setChipDismissed(true)}
-                      />
-                    </div>
-                  )}
+                  {canConvert &&
+                    draftIntent.isTask &&
+                    !chipDismissed &&
+                    !convertedDrafts.has(draft.trim()) && (
+                      <div className="mb-2 flex">
+                        <SuggestionChip
+                          keyword={draftIntent.keyword!}
+                          onConvert={() =>
+                            openConvert(draft, draftIntent.keyword, draftIntent.cleanedTitle, null)
+                          }
+                          onDismiss={() => setChipDismissed(true)}
+                        />
+                      </div>
+                    )}
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -783,9 +822,18 @@ const ChatPage = () => {
       </div>
       <SmartTaskPreviewDialog
         open={previewOpen}
-        onOpenChange={setPreviewOpen}
+        onOpenChange={(v) => {
+          if (submittingTask) return; // prevent dismissing mid-submit
+          setPreviewOpen(v);
+          if (!v) {
+            setPreviewDraft(null);
+            setPreviewSourceMsgId(null);
+            setPreviewThreadId(null);
+          }
+        }}
         initial={previewDraft}
         onConfirm={handleConfirmTask}
+        submitting={submittingTask}
       />
     </>
   );
