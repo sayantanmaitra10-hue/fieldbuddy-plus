@@ -1,17 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import type { Role } from "@/lib/mock-data";
-import { useAuth } from "@/context/AuthContext";
 
-/**
- * Role view layer.
- *
- * - `assignedRoles`  → roles the user actually has (source of truth, from auth/DB).
- * - `availableRoles` → roles they're allowed to "view as" (admin sees all).
- * - `activeRole`     → which role's UI is currently rendered.
- *
- * Switching the view NEVER changes permissions — it only filters what the UI shows.
- * A field-only user can't sneak into manager view by flipping a toggle.
- */
 interface RoleViewCtx {
   assignedRoles: Role[];
   availableRoles: Role[];
@@ -20,22 +9,18 @@ interface RoleViewCtx {
   setActiveRole: (r: Role) => void;
 }
 
-const Ctx = createContext<RoleViewCtx>({
-  assignedRoles: [],
-  availableRoles: ["field"],
-  activeRole: "field",
-  canSwitch: false,
-  setActiveRole: () => {},
-});
-
 const STORAGE_KEY = "fieldops:active-role";
 const ALL_ROLES: Role[] = ["field", "manager"];
 
-export const RoleProvider = ({ children }: { children: ReactNode }) => {
-  const { roles: assignedRoles, loading } = useAuth();
+const Ctx = createContext<RoleViewCtx>({
+  assignedRoles: ALL_ROLES,
+  availableRoles: ALL_ROLES,
+  activeRole: "field",
+  canSwitch: true,
+  setActiveRole: () => {},
+});
 
-  // Demo: every signed-in user can preview both the field and manager surfaces.
-  // Real permission enforcement still happens via useAuth().roles on protected routes.
+export const RoleProvider = ({ children }: { children: ReactNode }) => {
   const availableRoles = useMemo<Role[]>(() => ALL_ROLES, []);
 
   const [activeRole, setActiveRoleState] = useState<Role>(() => {
@@ -44,16 +29,14 @@ export const RoleProvider = ({ children }: { children: ReactNode }) => {
     return stored ?? "field";
   });
 
-  // Reconcile active role whenever the user's real roles change (login, role grant, etc.).
   useEffect(() => {
-    if (loading) return;
     if (!availableRoles.includes(activeRole)) {
       setActiveRoleState(availableRoles[0]);
     }
-  }, [availableRoles, activeRole, loading]);
+  }, [availableRoles, activeRole]);
 
   const setActiveRole = (r: Role) => {
-    if (!availableRoles.includes(r)) return; // hard guard
+    if (!availableRoles.includes(r)) return;
     setActiveRoleState(r);
     try {
       window.localStorage.setItem(STORAGE_KEY, r);
@@ -62,20 +45,21 @@ export const RoleProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const canSwitch = availableRoles.length > 1;
-
   return (
-    <Ctx.Provider value={{ assignedRoles, availableRoles, activeRole, canSwitch, setActiveRole }}>
+    <Ctx.Provider
+      value={{
+        assignedRoles: availableRoles,
+        availableRoles,
+        activeRole,
+        canSwitch: availableRoles.length > 1,
+        setActiveRole,
+      }}
+    >
       {children}
     </Ctx.Provider>
   );
 };
 
-/**
- * Backwards-compatible hook.
- * `role` is the active VIEW (use for UI filtering).
- * For real permission checks, use `useAuth().roles` instead.
- */
 export const useRole = () => {
   const ctx = useContext(Ctx);
   return {
