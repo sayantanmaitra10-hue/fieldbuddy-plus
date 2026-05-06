@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { useRole } from "@/context/RoleContext";
 import type { Role } from "@/lib/mock-data";
 import { Loader2 } from "lucide-react";
 
@@ -11,6 +12,7 @@ type Props = {
 
 export const ProtectedRoute = ({ children, requireRole }: Props) => {
   const { session, roles, loading } = useAuth();
+  const { availableRoles } = useRole();
 
   if (loading) {
     return (
@@ -22,7 +24,14 @@ export const ProtectedRoute = ({ children, requireRole }: Props) => {
 
   if (!session) return <Navigate to="/auth" replace />;
 
-  if (requireRole && !roles.includes(requireRole) && !roles.includes("admin")) {
+  // Permission gate: allow if user has the real role, is admin, or has the role
+  // available in their current view layer (demo: every signed-in user can preview both).
+  if (
+    requireRole &&
+    !roles.includes(requireRole) &&
+    !roles.includes("admin") &&
+    !availableRoles.includes(requireRole)
+  ) {
     return <Navigate to="/app" replace />;
   }
 
