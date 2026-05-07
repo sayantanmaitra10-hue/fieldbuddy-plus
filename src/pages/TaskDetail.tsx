@@ -169,6 +169,9 @@ const TaskDetail = () => {
 
         <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
           <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="font-mono text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              {t.code}
+            </span>
             <StatusPill status={status} />
             <StatusPill status={t.priority} />
             {t.source === "chat" && (

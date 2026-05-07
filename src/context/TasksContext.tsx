@@ -57,27 +57,35 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
   const addTask = useCallback((input: CreateInput): Task => {
     const assignee = employees.find((e) => e.id === input.assigneeId);
     const defHours = defaultHoursFor(input.keyword);
-    const newTask: Task = {
-      id: `t-${Date.now()}`,
-      title: input.title,
-      description: input.description ?? "",
-      status: "pending",
-      priority: input.priority ?? "medium",
-      assigneeId: input.assigneeId,
-      assignee: assignee?.name ?? "—",
-      location: assignee?.location ?? "—",
-      deadline: input.deadline,
-      createdAt: new Date().toISOString(),
-      proof: [],
-      messages: [],
-      source: input.source ?? "manual",
-      sourceMessageId: input.sourceMessageId,
-      sourceThreadId: input.sourceThreadId,
-      defaultHours: defHours,
-      extendedTimeline: false,
-    };
-    setTasks((prev) => [newTask, ...prev]);
-    return newTask;
+    let createdTask!: Task;
+    setTasks((prev) => {
+      const maxNum = prev.reduce((max, t) => {
+        const m = /^TSK-(\d+)$/.exec(t.code ?? "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 1000);
+      createdTask = {
+        id: `t-${Date.now()}`,
+        code: `TSK-${maxNum + 1}`,
+        title: input.title,
+        description: input.description ?? "",
+        status: "pending",
+        priority: input.priority ?? "medium",
+        assigneeId: input.assigneeId,
+        assignee: assignee?.name ?? "—",
+        location: assignee?.location ?? "—",
+        deadline: input.deadline,
+        createdAt: new Date().toISOString(),
+        proof: [],
+        messages: [],
+        source: input.source ?? "manual",
+        sourceMessageId: input.sourceMessageId,
+        sourceThreadId: input.sourceThreadId,
+        defaultHours: defHours,
+        extendedTimeline: false,
+      };
+      return [createdTask, ...prev];
+    });
+    return createdTask;
   }, []);
 
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {

@@ -29,7 +29,10 @@ export const TaskCard = ({ task, pendingSync = false }: { task: Task; pendingSyn
         {pendingSync && <PendingSyncBadge />}
       </div>
       <div className="flex items-start justify-between gap-3 mb-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-mono text-[10px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            {task.code}
+          </span>
           <StatusPill status={task.status} />
           <StatusPill status={task.priority} />
         </div>

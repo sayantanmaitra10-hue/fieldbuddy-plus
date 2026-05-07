@@ -3,6 +3,7 @@ export type Role = "field" | "manager" | "admin";
 
 export interface Task {
   id: string;
+  code: string; // human-readable unique task code, e.g., TSK-1042
   title: string;
   description: string;
   assignee: string;
@@ -60,6 +61,7 @@ const seedCreatedAt = (deadlineIso: string) =>
 export const tasks: Task[] = [
   {
     id: "t1",
+    code: "TSK-1001",
     title: "Site survey — Bandra retail outlet",
     description: "Complete dimensional survey of new retail floor. Capture wall measurements, electrical points, and HVAC layout.",
     assignee: "Arjun Mehta", assigneeId: "e1",
@@ -76,6 +78,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t2",
+    code: "TSK-1002",
     title: "Equipment installation — Andheri",
     description: "Install POS terminals at counter 3 & 4. Verify network handshake.",
     assignee: "Arjun Mehta", assigneeId: "e1",
@@ -89,6 +92,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t3",
+    code: "TSK-1003",
     title: "Client handover — Powai office",
     description: "Walk client through deployed setup. Capture sign-off photo.",
     assignee: "Arjun Mehta", assigneeId: "e1",
@@ -104,6 +108,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t4",
+    code: "TSK-1004",
     title: "Inventory audit — Lower Parel",
     description: "Spot-count items against system. Flag mismatches.",
     assignee: "Karan Patel", assigneeId: "e5",
@@ -117,6 +122,7 @@ export const tasks: Task[] = [
   },
   {
     id: "t5",
+    code: "TSK-1005",
     title: "Maintenance check — Goregaon",
     description: "Quarterly preventive maintenance on rooftop unit.",
     assignee: "Arjun Mehta", assigneeId: "e1",
