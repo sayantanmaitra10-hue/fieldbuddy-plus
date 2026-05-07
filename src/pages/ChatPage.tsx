@@ -615,7 +615,14 @@ const ChatPage = () => {
                     {active.initials}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{active.title}</div>
+                    <div className="flex items-center gap-1.5">
+                      {active.code && (
+                        <span className="font-mono text-[9px] font-semibold text-muted-foreground bg-muted px-1 py-0.5 rounded shrink-0">
+                          {active.code}
+                        </span>
+                      )}
+                      <div className="font-medium truncate">{active.title}</div>
+                    </div>
                     <div className="text-xs text-muted-foreground truncate">
                       {active.subtitle}
                     </div>
