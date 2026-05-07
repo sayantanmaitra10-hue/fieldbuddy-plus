@@ -57,9 +57,17 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
   const addTask = useCallback((input: CreateInput): Task => {
     const assignee = employees.find((e) => e.id === input.assigneeId);
     const defHours = defaultHoursFor(input.keyword);
-    const newTask: Task = {
-      id: `t-${Date.now()}`,
-      title: input.title,
+    let nextCode = "TSK-1001";
+    setTasks((prev) => {
+      const maxNum = prev.reduce((max, t) => {
+        const m = /^TSK-(\d+)$/.exec(t.code ?? "");
+        return m ? Math.max(max, parseInt(m[1], 10)) : max;
+      }, 1000);
+      nextCode = `TSK-${maxNum + 1}`;
+      const newTask: Task = {
+        id: `t-${Date.now()}`,
+        code: nextCode,
+        title: input.title,
       description: input.description ?? "",
       status: "pending",
       priority: input.priority ?? "medium",
