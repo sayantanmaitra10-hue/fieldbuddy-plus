@@ -89,6 +89,7 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
     id: `task-${t.id}`,
     kind: "task",
     title: t.title,
+    code: t.code,
     subtitle: `${t.assignee} · ${t.location.split(",")[0]}`,
     initials: initialsOf(t.title),
     unread: i === 0 ? 2 : 0,
