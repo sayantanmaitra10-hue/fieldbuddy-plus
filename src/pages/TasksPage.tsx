@@ -117,7 +117,8 @@ const TasksPage = () => {
   const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === "e1") : localTasks).filter(
     (t) => {
       const map = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
-      return t.status === map[active] && t.title.toLowerCase().includes(q.toLowerCase());
+      const ql = q.toLowerCase();
+      return t.status === map[active] && (t.title.toLowerCase().includes(ql) || t.code.toLowerCase().includes(ql));
     },
   );
 
@@ -143,15 +144,15 @@ const TasksPage = () => {
     });
 
     if (!online) {
-      const qid = enqueue({ kind: "task", label: `New task: ${pending.title}` });
+      const qid = enqueue({ kind: "task", label: `New task ${newTask.code}: ${pending.title}` });
       setPendingSyncIds((prev) => ({ ...prev, [newTask.id]: qid }));
       toast({
-        title: "Task queued (offline)",
+        title: `Task ${newTask.code} queued (offline)`,
         description: `"${pending.title}" → ${assignee?.name} · will sync when online`,
       });
     } else {
       toast({
-        title: "Task assigned",
+        title: `Task ${newTask.code} assigned`,
         description: `"${pending.title}" → ${assignee?.name} · due ${format(dl, "MMM d, HH:mm")}`,
       });
     }

@@ -424,7 +424,7 @@ const ChatPage = () => {
     const systemMsg: Message = {
       id: `m-sys-${Date.now()}`,
       from: "System",
-      text: `📋 Task created → ${newTask.title} · due in ${d.hours}h`,
+      text: `📋 Task ${newTask.code} created → ${newTask.title} · due in ${d.hours}h`,
       time: nowTime(),
       system: true,
       taskId: newTask.id,
@@ -437,7 +437,7 @@ const ChatPage = () => {
     setPreviewSourceMsgId(null);
     setPreviewThreadId(null);
     setSubmittingTask(false);
-    toast({ title: "Task created", description: `${newTask.title} → ${newTask.assignee}` });
+    toast({ title: `Task ${newTask.code} created`, description: `${newTask.title} → ${newTask.assignee}` });
   };
 
   const dismissMessage = (msgId: string) => {
