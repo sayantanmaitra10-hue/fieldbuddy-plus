@@ -54,6 +54,7 @@ type Thread = {
   initials: string;
   unread: number;
   messages: Message[];
+  code?: string;
 };
 
 const nowTime = () =>
