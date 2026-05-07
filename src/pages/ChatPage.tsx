@@ -491,7 +491,14 @@ const ChatPage = () => {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="font-medium text-sm truncate">{t.title}</div>
+          <div className="flex items-center gap-1.5 min-w-0">
+            {t.code && (
+              <span className="font-mono text-[9px] font-semibold text-muted-foreground bg-muted px-1 py-0.5 rounded shrink-0">
+                {t.code}
+              </span>
+            )}
+            <div className="font-medium text-sm truncate">{t.title}</div>
+          </div>
           {t.messages.length > 0 && (
             <div className="text-[10px] text-muted-foreground shrink-0">
               {t.messages[t.messages.length - 1].time}
