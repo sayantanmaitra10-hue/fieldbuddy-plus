@@ -3,6 +3,7 @@ export type Role = "field" | "manager" | "admin";
 
 export interface Task {
   id: string;
+  code: string; // human-readable unique task code, e.g., TSK-1042
   title: string;
   description: string;
   assignee: string;
