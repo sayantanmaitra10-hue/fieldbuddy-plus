@@ -26,6 +26,9 @@ export const Sidebar = () => {
   const { role, setRole, availableRoles, canSwitch } = useRole();
   const items = role === "field" ? fieldNav : role === "admin" ? adminNav : managerNav;
   const location = useLocation();
+  const { impersonatedMember } = useAdmin();
+  const displayName = impersonatedMember?.name ?? "Arjun Mehta";
+  const displayAvatar = impersonatedMember?.avatar ?? "AM";
 
   return (
     <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
