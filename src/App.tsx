@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { RoleProvider } from "@/context/RoleContext";
 import { SyncProvider } from "@/context/SyncContext";
 import { TasksProvider } from "@/context/TasksContext";
+import { AdminProvider } from "@/context/AdminContext";
 import { AppShell } from "@/components/layout/AppShell";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -18,6 +19,7 @@ import Team from "./pages/Team";
 import EmployeeDetail from "./pages/EmployeeDetail";
 import Alerts from "./pages/Alerts";
 import Access from "./pages/Access";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -30,19 +32,22 @@ const App = () => (
         <RoleProvider>
           <SyncProvider>
             <TasksProvider>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/app" element={<AppShell><FieldToday /></AppShell>} />
-                <Route path="/app/tasks" element={<AppShell><TasksPage /></AppShell>} />
-                <Route path="/app/tasks/:id" element={<AppShell><TaskDetail /></AppShell>} />
-                <Route path="/app/chat" element={<AppShell><ChatPage /></AppShell>} />
-                <Route path="/app/dashboard" element={<AppShell><Dashboard /></AppShell>} />
-                <Route path="/app/team" element={<AppShell><Team /></AppShell>} />
-                <Route path="/app/team/:id" element={<AppShell><EmployeeDetail /></AppShell>} />
-                <Route path="/app/alerts" element={<AppShell><Alerts /></AppShell>} />
-                <Route path="/app/access" element={<AppShell><Access /></AppShell>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <AdminProvider>
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/app" element={<AppShell><FieldToday /></AppShell>} />
+                  <Route path="/app/tasks" element={<AppShell><TasksPage /></AppShell>} />
+                  <Route path="/app/tasks/:id" element={<AppShell><TaskDetail /></AppShell>} />
+                  <Route path="/app/chat" element={<AppShell><ChatPage /></AppShell>} />
+                  <Route path="/app/dashboard" element={<AppShell><Dashboard /></AppShell>} />
+                  <Route path="/app/team" element={<AppShell><Team /></AppShell>} />
+                  <Route path="/app/team/:id" element={<AppShell><EmployeeDetail /></AppShell>} />
+                  <Route path="/app/alerts" element={<AppShell><Alerts /></AppShell>} />
+                  <Route path="/app/access" element={<AppShell><Access /></AppShell>} />
+                  <Route path="/app/admin" element={<AppShell><Admin /></AppShell>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </AdminProvider>
             </TasksProvider>
           </SyncProvider>
         </RoleProvider>
