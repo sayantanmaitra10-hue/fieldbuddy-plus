@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { RoleProvider } from "@/context/RoleContext";
 import { SyncProvider } from "@/context/SyncContext";
 import { TasksProvider } from "@/context/TasksContext";
+import { AdminProvider } from "@/context/AdminContext";
 import { AppShell } from "@/components/layout/AppShell";
 import Index from "./pages/Index.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -18,6 +19,7 @@ import Team from "./pages/Team";
 import EmployeeDetail from "./pages/EmployeeDetail";
 import Alerts from "./pages/Alerts";
 import Access from "./pages/Access";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
