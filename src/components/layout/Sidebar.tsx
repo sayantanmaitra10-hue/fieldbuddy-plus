@@ -40,7 +40,7 @@ export const Sidebar = () => {
 
       <div className="px-3 py-4">
         <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/50">
-          {role === "field" ? "Field User" : "Manager"}
+          {role === "field" ? "Field User" : role === "admin" ? "Admin" : "Manager"}
         </div>
         <nav className="flex flex-col gap-0.5">
           {items.map((item) => {
