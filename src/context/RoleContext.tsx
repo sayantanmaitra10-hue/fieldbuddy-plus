@@ -10,7 +10,7 @@ interface RoleViewCtx {
 }
 
 const STORAGE_KEY = "fieldops:active-role";
-const ALL_ROLES: Role[] = ["field", "manager"];
+const ALL_ROLES: Role[] = ["field", "manager", "admin"];
 
 const Ctx = createContext<RoleViewCtx>({
   assignedRoles: ALL_ROLES,
@@ -26,7 +26,7 @@ export const RoleProvider = ({ children }: { children: ReactNode }) => {
   const [activeRole, setActiveRoleState] = useState<Role>(() => {
     if (typeof window === "undefined") return "field";
     const stored = window.localStorage.getItem(STORAGE_KEY) as Role | null;
-    return stored ?? "field";
+    return stored && ALL_ROLES.includes(stored) ? stored : "field";
   });
 
   useEffect(() => {
