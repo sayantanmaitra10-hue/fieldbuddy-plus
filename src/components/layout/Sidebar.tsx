@@ -97,10 +97,12 @@ export const Sidebar = () => {
           </>
         )}
         <div className="flex items-center gap-3 px-2 pt-2">
-          <div className="size-9 rounded-full bg-accent text-accent-foreground grid place-items-center text-xs font-semibold">AM</div>
+          <div className="size-9 rounded-full bg-accent text-accent-foreground grid place-items-center text-xs font-semibold">{displayAvatar}</div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate text-sidebar-foreground">Arjun Mehta</div>
-            <div className="text-[11px] text-sidebar-foreground/60 truncate">{location.pathname}</div>
+            <div className="text-sm font-medium truncate text-sidebar-foreground">{displayName}</div>
+            <div className="text-[11px] text-sidebar-foreground/60 truncate">
+              {impersonatedMember ? "Impersonated session" : location.pathname}
+            </div>
           </div>
           <Settings className="size-4 text-sidebar-foreground/60" />
         </div>
