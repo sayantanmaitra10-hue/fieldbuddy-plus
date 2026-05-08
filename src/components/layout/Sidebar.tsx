@@ -23,7 +23,7 @@ const adminNav: NavItem[] = [
 
 export const Sidebar = () => {
   const { role, setRole, availableRoles, canSwitch } = useRole();
-  const items = role === "field" ? fieldNav : managerNav;
+  const items = role === "field" ? fieldNav : role === "admin" ? adminNav : managerNav;
   const location = useLocation();
 
   return (
