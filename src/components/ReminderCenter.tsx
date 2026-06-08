@@ -70,13 +70,8 @@ export const ReminderCenter = () => {
 
   return (
     <AlertDialog open>
-      <AlertDialogContent
-        // Unskippable: block ESC and outside-click closes
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
-        className="border-amber-500/40"
-      >
+      <AlertDialogContent className="border-amber-500/40">
+
         <AlertDialogHeader>
           <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
             <AlarmClock className="size-5" />
