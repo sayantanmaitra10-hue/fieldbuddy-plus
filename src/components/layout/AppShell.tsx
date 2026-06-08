@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { MobileNav } from "./MobileNav";
 import { SyncBanner } from "@/components/SyncBanner";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { ReminderCenter } from "@/components/ReminderCenter";
 
 export const AppShell = ({ children }: { children: ReactNode }) => (
   <div className="min-h-screen flex bg-background">
@@ -13,5 +14,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => (
       {children}
     </main>
     <MobileNav />
+    <ReminderCenter />
   </div>
 );
+
