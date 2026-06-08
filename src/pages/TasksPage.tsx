@@ -79,6 +79,7 @@ const taskSchema = z
       .trim()
       .max(500, { message: "Description must be under 500 characters" })
       .optional(),
+    reminderOffsetHours: z.coerce.number().positive().optional(),
   })
   .refine(
     (data) => {
@@ -88,7 +89,20 @@ const taskSchema = z
       return dl.getTime() > Date.now();
     },
     { message: "Deadline must be in the future", path: ["deadlineDate"] },
+  )
+  .refine(
+    (data) => {
+      const [h, m] = data.deadlineTime.split(":").map(Number);
+      const dl = new Date(data.deadlineDate);
+      dl.setHours(h, m, 0, 0);
+      const etaH = (dl.getTime() - Date.now()) / (1000 * 60 * 60);
+      // For tiny tasks (<3h ETA) the manager must pick a reminder offset.
+      if (etaH < 3) return data.reminderOffsetHours != null;
+      return true;
+    },
+    { message: "Pick a reminder timing for this short task", path: ["reminderOffsetHours"] },
   );
+
 
 type TaskForm = z.infer<typeof taskSchema>;
 
