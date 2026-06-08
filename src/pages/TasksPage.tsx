@@ -187,7 +187,6 @@ const ReminderField = ({
 
 
 
-type TaskForm = z.infer<typeof taskSchema>;
 
 const TasksPage = () => {
   const { role } = useRole();
