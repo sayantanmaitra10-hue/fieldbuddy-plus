@@ -5,10 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Topbar } from "@/components/layout/Topbar";
 import { TaskCard } from "@/components/TaskCard";
-import { employees, type Task } from "@/lib/mock-data";
+import { type Task } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
 import { useSync } from "@/context/SyncContext";
 import { useTasks } from "@/context/TasksContext";
+import { useAdmin } from "@/context/AdminContext";
 import { Plus, Search, CalendarIcon, AlertCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,8 @@ import { cn } from "@/lib/utils";
 
 const tabs = ["Pending", "In Progress", "Completed"] as const;
 
-const fieldEmployees = employees.filter((e) => e.role.toLowerCase().includes("field"));
+
+
 
 const taskSchema = z
   .object({
