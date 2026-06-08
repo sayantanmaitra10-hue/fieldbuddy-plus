@@ -55,7 +55,17 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addTask = useCallback((input: CreateInput): Task => {
-    const assignee = employees.find((e) => e.id === input.assigneeId);
+    let assignee: { name: string; location: string } | undefined = employees.find((e) => e.id === input.assigneeId);
+    if (!assignee && typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("fieldops:members");
+        if (raw) {
+          const list = JSON.parse(raw) as Array<{ id: string; name: string; location: string }>;
+          const m = list.find((x) => x.id === input.assigneeId);
+          if (m) assignee = { name: m.name, location: m.location };
+        }
+      } catch { /* ignore */ }
+    }
     const defHours = defaultHoursFor(input.keyword);
     let createdTask!: Task;
     setTasks((prev) => {

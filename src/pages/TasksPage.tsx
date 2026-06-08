@@ -5,10 +5,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Topbar } from "@/components/layout/Topbar";
 import { TaskCard } from "@/components/TaskCard";
-import { employees, type Task } from "@/lib/mock-data";
+import { type Task } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
 import { useSync } from "@/context/SyncContext";
 import { useTasks } from "@/context/TasksContext";
+import { useAdmin } from "@/context/AdminContext";
 import { Plus, Search, CalendarIcon, AlertCircle, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +56,8 @@ import { cn } from "@/lib/utils";
 
 const tabs = ["Pending", "In Progress", "Completed"] as const;
 
-const fieldEmployees = employees.filter((e) => e.role.toLowerCase().includes("field"));
+
+
 
 const taskSchema = z
   .object({
@@ -94,6 +96,8 @@ const TasksPage = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
   const { tasks: localTasks, addTask } = useTasks();
+  const { members } = useAdmin();
+  const fieldEmployees = members.filter((m) => m.appRole === "field");
   const [active, setActive] = useState<typeof tabs[number]>("In Progress");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -129,7 +133,7 @@ const TasksPage = () => {
 
   const confirmAssign = () => {
     if (!pending) return;
-    const assignee = employees.find((e) => e.id === pending.assigneeId);
+    const assignee = members.find((e) => e.id === pending.assigneeId);
     const [h, m] = pending.deadlineTime.split(":").map(Number);
     const dl = new Date(pending.deadlineDate);
     dl.setHours(h, m, 0, 0);
@@ -162,7 +166,7 @@ const TasksPage = () => {
     setOpen(false);
   };
 
-  const pendingAssignee = pending ? employees.find((e) => e.id === pending.assigneeId) : null;
+  const pendingAssignee = pending ? members.find((e) => e.id === pending.assigneeId) : null;
   const pendingDeadline = (() => {
     if (!pending) return null;
     const [h, m] = pending.deadlineTime.split(":").map(Number);
@@ -203,7 +207,7 @@ const TasksPage = () => {
     ];
     const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = visible.map((t) => {
-      const assignee = employees.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
+      const assignee = members.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
       return [
         t.id,
         t.title,

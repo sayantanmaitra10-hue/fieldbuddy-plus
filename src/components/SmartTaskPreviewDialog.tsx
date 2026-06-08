@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sparkles, Clock } from "lucide-react";
-import { employees } from "@/lib/mock-data";
+import { useAdmin } from "@/context/AdminContext";
 import { defaultHoursFor, type SmartKeyword } from "@/lib/smart-task";
 
 export type SmartTaskDraft = {
@@ -29,10 +29,6 @@ export type SmartTaskDraft = {
   keyword?: SmartKeyword;
   sourceMessage?: string;
 };
-
-const fieldEmployees = employees.filter((e) =>
-  e.role.toLowerCase().includes("field"),
-);
 
 export const SmartTaskPreviewDialog = ({
   open,
@@ -48,6 +44,8 @@ export const SmartTaskPreviewDialog = ({
   submitting?: boolean;
 }) => {
   const [draft, setDraft] = useState<SmartTaskDraft | null>(initial);
+  const { members } = useAdmin();
+  const fieldEmployees = members.filter((m) => m.appRole === "field");
 
   useEffect(() => {
     setDraft(initial);
@@ -59,7 +57,7 @@ export const SmartTaskPreviewDialog = ({
     setDraft((d) => (d ? { ...d, [key]: value } : d));
 
   const recommendedHours = defaultHoursFor(draft.keyword);
-  const assignee = employees.find((e) => e.id === draft.assigneeId);
+  const assignee = members.find((e) => e.id === draft.assigneeId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

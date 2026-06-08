@@ -1,5 +1,4 @@
 import { Topbar } from "@/components/layout/Topbar";
-import { employees } from "@/lib/mock-data";
 import { Link, useNavigate } from "react-router-dom";
 import { MapPin, MessageSquare } from "lucide-react";
 import { StatusPill } from "@/components/StatusPill";
@@ -7,19 +6,22 @@ import { WorkloadPill } from "@/components/WorkloadPill";
 import { Button } from "@/components/ui/button";
 import { useTasks } from "@/context/TasksContext";
 import { useRole } from "@/context/RoleContext";
+import { useAdmin } from "@/context/AdminContext";
 
 const Team = () => {
   const { workloadFor, pendingFor } = useTasks();
   const { role } = useRole();
+  const { members } = useAdmin();
   const navigate = useNavigate();
   const canMessage = role === "manager" || role === "admin";
+  const fieldStaff = members.filter((m) => m.appRole === "field");
 
   return (
     <>
-      <Topbar title="Team" subtitle={`${employees.length} field employees`} />
+      <Topbar title="Team" subtitle={`${fieldStaff.length} field employees`} />
       <div className="p-4 lg:p-8 max-w-6xl">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {employees.map((e) => {
+          {fieldStaff.map((e) => {
             const { band } = workloadFor(e.id);
             const pendingCount = pendingFor(e.id).length;
             return (
