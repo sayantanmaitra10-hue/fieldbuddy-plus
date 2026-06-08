@@ -166,7 +166,9 @@ const TasksPage = () => {
       deadline: dl.toISOString(),
       priority: pending.priority,
       source: "manual",
+      reminderOffsetHours: pending.reminderOffsetHours,
     });
+
 
     if (!online) {
       const qid = enqueue({ kind: "task", label: `New task ${newTask.code}: ${pending.title}` });
