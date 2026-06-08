@@ -164,8 +164,18 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
             : Date.now();
           const newHours = (new Date(iso).getTime() - baseMs) / (1000 * 60 * 60);
           extended = isExtended(Math.max(0.1, newHours), def);
-          resultTask = { ...t, deadline: iso, extendedTimeline: extended };
+          const offset = t.reminderOffsetHours ?? defaultReminderOffsetHours(newHours) ?? 0.25;
+          const clampedOffset = Math.min(offset, Math.max(0, newHours - 1 / 60));
+          resultTask = {
+            ...t,
+            deadline: iso,
+            extendedTimeline: extended,
+            reminderOffsetHours: clampedOffset,
+            reminderAt: reminderTimeFor(iso, clampedOffset),
+            reminderAcknowledgedAt: undefined,
+          };
           return resultTask;
+
         }),
       );
       if (resultTask && extended) {
