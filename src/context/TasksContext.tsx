@@ -9,6 +9,7 @@ import {
   type SmartKeyword,
   type WorkloadBand,
 } from "@/lib/smart-task";
+import { defaultReminderOffsetHours, reminderTimeFor } from "@/lib/reminder";
 
 type CreateInput = {
   title: string;
@@ -20,6 +21,7 @@ type CreateInput = {
   sourceMessageId?: string;
   sourceThreadId?: string;
   keyword?: SmartKeyword;
+  reminderOffsetHours?: number; // optional override (required for tiny tasks)
 };
 
 type TasksContextValue = {
@@ -29,11 +31,13 @@ type TasksContextValue = {
   updateTask: (id: string, patch: Partial<Task>) => void;
   reassignTask: (id: string, newAssigneeId: string) => Task | undefined;
   setDeadline: (id: string, iso: string) => { extended: boolean; task: Task } | undefined;
+  acknowledgeReminder: (id: string) => void;
   pendingFor: (employeeId: string) => Task[];
   workloadFor: (employeeId: string) => { score: number; band: WorkloadBand };
   pushAlert: (alert: Omit<Alert, "id" | "time">) => void;
   resolveAlert: (id: string) => void;
 };
+
 
 const TasksContext = createContext<TasksContextValue | null>(null);
 
@@ -73,6 +77,17 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         const m = /^TSK-(\d+)$/.exec(t.code ?? "");
         return m ? Math.max(max, parseInt(m[1], 10)) : max;
       }, 1000);
+      const nowMs = Date.now();
+      const etaHours = Math.max(
+        0,
+        (new Date(input.deadline).getTime() - nowMs) / (1000 * 60 * 60),
+      );
+      const defaultOffset = defaultReminderOffsetHours(etaHours);
+      // Clamp offset to ETA so the reminder always fires in the future
+      const rawOffset =
+        input.reminderOffsetHours ?? defaultOffset ?? Math.min(etaHours * 0.5, 0.5);
+      const reminderOffsetHours = Math.min(rawOffset, Math.max(0, etaHours - 1 / 60));
+      const reminderAt = reminderTimeFor(input.deadline, reminderOffsetHours);
       createdTask = {
         id: `t-${Date.now()}`,
         code: `TSK-${maxNum + 1}`,
@@ -92,11 +107,22 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         sourceThreadId: input.sourceThreadId,
         defaultHours: defHours,
         extendedTimeline: false,
+        reminderOffsetHours,
+        reminderAt,
       };
       return [createdTask, ...prev];
     });
     return createdTask;
   }, []);
+
+  const acknowledgeReminder = useCallback((id: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, reminderAcknowledgedAt: new Date().toISOString() } : t,
+      ),
+    );
+  }, []);
+
 
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -138,8 +164,18 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
             : Date.now();
           const newHours = (new Date(iso).getTime() - baseMs) / (1000 * 60 * 60);
           extended = isExtended(Math.max(0.1, newHours), def);
-          resultTask = { ...t, deadline: iso, extendedTimeline: extended };
+          const offset = t.reminderOffsetHours ?? defaultReminderOffsetHours(newHours) ?? 0.25;
+          const clampedOffset = Math.min(offset, Math.max(0, newHours - 1 / 60));
+          resultTask = {
+            ...t,
+            deadline: iso,
+            extendedTimeline: extended,
+            reminderOffsetHours: clampedOffset,
+            reminderAt: reminderTimeFor(iso, clampedOffset),
+            reminderAcknowledgedAt: undefined,
+          };
           return resultTask;
+
         }),
       );
       if (resultTask && extended) {
@@ -200,13 +236,15 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
       updateTask,
       reassignTask,
       setDeadline,
+      acknowledgeReminder,
       pendingFor,
       workloadFor,
       pushAlert,
       resolveAlert,
     }),
-    [tasks, alerts, addTask, updateTask, reassignTask, setDeadline, pendingFor, workloadFor, pushAlert, resolveAlert],
+    [tasks, alerts, addTask, updateTask, reassignTask, setDeadline, acknowledgeReminder, pendingFor, workloadFor, pushAlert, resolveAlert],
   );
+
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
 };

@@ -53,6 +53,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import {
+  TINY_REMINDER_CHOICES,
+  defaultReminderOffsetHours,
+  formatOffset,
+  taskSizeFor,
+} from "@/lib/reminder";
+
 
 const tabs = ["Pending", "In Progress", "Completed"] as const;
 
@@ -79,6 +86,7 @@ const taskSchema = z
       .trim()
       .max(500, { message: "Description must be under 500 characters" })
       .optional(),
+    reminderOffsetHours: z.coerce.number().positive().optional(),
   })
   .refine(
     (data) => {
@@ -88,9 +96,97 @@ const taskSchema = z
       return dl.getTime() > Date.now();
     },
     { message: "Deadline must be in the future", path: ["deadlineDate"] },
+  )
+  .refine(
+    (data) => {
+      const [h, m] = data.deadlineTime.split(":").map(Number);
+      const dl = new Date(data.deadlineDate);
+      dl.setHours(h, m, 0, 0);
+      const etaH = (dl.getTime() - Date.now()) / (1000 * 60 * 60);
+      // For tiny tasks (<3h ETA) the manager must pick a reminder offset.
+      if (etaH < 3) return data.reminderOffsetHours != null;
+      return true;
+    },
+    { message: "Pick a reminder timing for this short task", path: ["reminderOffsetHours"] },
   );
 
 type TaskForm = z.infer<typeof taskSchema>;
+
+const ReminderField = ({
+  control,
+  watch,
+  setValue,
+}: {
+  control: ReturnType<typeof useForm<TaskForm>>["control"];
+  watch: ReturnType<typeof useForm<TaskForm>>["watch"];
+  setValue: ReturnType<typeof useForm<TaskForm>>["setValue"];
+}) => {
+  const date = watch("deadlineDate");
+  const time = watch("deadlineTime");
+  const reminderValue = watch("reminderOffsetHours");
+
+  const etaHours = (() => {
+    if (!date || !time) return null;
+    const [h, m] = time.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    const dl = new Date(date);
+    dl.setHours(h, m, 0, 0);
+    return (dl.getTime() - Date.now()) / (1000 * 60 * 60);
+  })();
+
+  if (etaHours == null || etaHours <= 0) return null;
+  const size = taskSizeFor(etaHours);
+
+  if (size !== "tiny") {
+    const offset = defaultReminderOffsetHours(etaHours)!;
+    return (
+      <div className="rounded-lg border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground capitalize">{size} task</span>{" "}
+        · Unskippable reminder fires <span className="font-medium text-foreground">{formatOffset(offset)}</span>.
+      </div>
+    );
+  }
+
+  // Tiny task — manager must pick a reminder offset (capped to ETA - 1min)
+  const choices = TINY_REMINDER_CHOICES.filter((c) => c.hours < etaHours);
+  return (
+    <FormField
+      control={control}
+      name="reminderOffsetHours"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>
+            Reminder timing <span className="text-destructive">*</span>
+          </FormLabel>
+          <Select
+            value={field.value != null ? String(field.value) : ""}
+            onValueChange={(v) => setValue("reminderOffsetHours", parseFloat(v), { shouldValidate: true })}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue placeholder="When should we remind the assignee?" />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent className="bg-popover">
+              {choices.map((c) => (
+                <SelectItem key={c.label} value={String(c.hours)}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Short task (under 3h ETA) — choose when the unskippable reminder fires.
+          </p>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+};
+
+
+
 
 const TasksPage = () => {
   const { role } = useRole();
@@ -145,7 +241,9 @@ const TasksPage = () => {
       deadline: dl.toISOString(),
       priority: pending.priority,
       source: "manual",
+      reminderOffsetHours: pending.reminderOffsetHours,
     });
+
 
     if (!online) {
       const qid = enqueue({ kind: "task", label: `New task ${newTask.code}: ${pending.title}` });
@@ -415,6 +513,10 @@ const TasksPage = () => {
                         </FormItem>
                       )}
                     />
+
+                    <ReminderField control={form.control} watch={form.watch} setValue={form.setValue} />
+
+
 
                     <FormField
                       control={form.control}
