@@ -9,6 +9,7 @@ import {
   type SmartKeyword,
   type WorkloadBand,
 } from "@/lib/smart-task";
+import { defaultReminderOffsetHours, reminderTimeFor } from "@/lib/reminder";
 
 type CreateInput = {
   title: string;
@@ -20,6 +21,7 @@ type CreateInput = {
   sourceMessageId?: string;
   sourceThreadId?: string;
   keyword?: SmartKeyword;
+  reminderOffsetHours?: number; // optional override (required for tiny tasks)
 };
 
 type TasksContextValue = {
@@ -29,11 +31,13 @@ type TasksContextValue = {
   updateTask: (id: string, patch: Partial<Task>) => void;
   reassignTask: (id: string, newAssigneeId: string) => Task | undefined;
   setDeadline: (id: string, iso: string) => { extended: boolean; task: Task } | undefined;
+  acknowledgeReminder: (id: string) => void;
   pendingFor: (employeeId: string) => Task[];
   workloadFor: (employeeId: string) => { score: number; band: WorkloadBand };
   pushAlert: (alert: Omit<Alert, "id" | "time">) => void;
   resolveAlert: (id: string) => void;
 };
+
 
 const TasksContext = createContext<TasksContextValue | null>(null);
 
