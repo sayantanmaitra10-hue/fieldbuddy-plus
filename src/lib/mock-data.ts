@@ -20,7 +20,11 @@ export interface Task {
   defaultHours?: number;
   extendedTimeline?: boolean;
   createdAt?: string; // ISO — used to compute total task duration when adjusting deadlines
+  reminderOffsetHours?: number; // hours before deadline that an unskippable reminder fires
+  reminderAt?: string; // ISO — when the reminder should fire
+  reminderAcknowledgedAt?: string; // ISO — when the assignee acknowledged the reminder
 }
+
 
 export interface Employee {
   id: string;
