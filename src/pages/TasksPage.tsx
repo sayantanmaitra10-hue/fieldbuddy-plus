@@ -439,6 +439,10 @@ const TasksPage = () => {
                       )}
                     />
 
+                    <ReminderField control={form.control} watch={form.watch} setValue={form.setValue} />
+
+
+
                     <FormField
                       control={form.control}
                       name="description"
