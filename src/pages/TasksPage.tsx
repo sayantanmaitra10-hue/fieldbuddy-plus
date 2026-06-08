@@ -96,6 +96,8 @@ const TasksPage = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
   const { tasks: localTasks, addTask } = useTasks();
+  const { members } = useAdmin();
+  const fieldEmployees = members.filter((m) => m.appRole === "field");
   const [active, setActive] = useState<typeof tabs[number]>("In Progress");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
