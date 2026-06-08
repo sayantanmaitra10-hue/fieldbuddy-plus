@@ -53,6 +53,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import {
+  TINY_REMINDER_CHOICES,
+  defaultReminderOffsetHours,
+  formatOffset,
+  taskSizeFor,
+} from "@/lib/reminder";
+
 
 const tabs = ["Pending", "In Progress", "Completed"] as const;
 
