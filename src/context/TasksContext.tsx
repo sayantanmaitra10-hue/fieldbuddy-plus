@@ -77,6 +77,17 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         const m = /^TSK-(\d+)$/.exec(t.code ?? "");
         return m ? Math.max(max, parseInt(m[1], 10)) : max;
       }, 1000);
+      const nowMs = Date.now();
+      const etaHours = Math.max(
+        0,
+        (new Date(input.deadline).getTime() - nowMs) / (1000 * 60 * 60),
+      );
+      const defaultOffset = defaultReminderOffsetHours(etaHours);
+      // Clamp offset to ETA so the reminder always fires in the future
+      const rawOffset =
+        input.reminderOffsetHours ?? defaultOffset ?? Math.min(etaHours * 0.5, 0.5);
+      const reminderOffsetHours = Math.min(rawOffset, Math.max(0, etaHours - 1 / 60));
+      const reminderAt = reminderTimeFor(input.deadline, reminderOffsetHours);
       createdTask = {
         id: `t-${Date.now()}`,
         code: `TSK-${maxNum + 1}`,
@@ -96,11 +107,22 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         sourceThreadId: input.sourceThreadId,
         defaultHours: defHours,
         extendedTimeline: false,
+        reminderOffsetHours,
+        reminderAt,
       };
       return [createdTask, ...prev];
     });
     return createdTask;
   }, []);
+
+  const acknowledgeReminder = useCallback((id: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, reminderAcknowledgedAt: new Date().toISOString() } : t,
+      ),
+    );
+  }, []);
+
 
   const updateTask = useCallback((id: string, patch: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
