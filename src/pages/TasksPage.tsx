@@ -133,7 +133,7 @@ const TasksPage = () => {
 
   const confirmAssign = () => {
     if (!pending) return;
-    const assignee = employees.find((e) => e.id === pending.assigneeId);
+    const assignee = members.find((e) => e.id === pending.assigneeId);
     const [h, m] = pending.deadlineTime.split(":").map(Number);
     const dl = new Date(pending.deadlineDate);
     dl.setHours(h, m, 0, 0);
@@ -166,7 +166,7 @@ const TasksPage = () => {
     setOpen(false);
   };
 
-  const pendingAssignee = pending ? employees.find((e) => e.id === pending.assigneeId) : null;
+  const pendingAssignee = pending ? members.find((e) => e.id === pending.assigneeId) : null;
   const pendingDeadline = (() => {
     if (!pending) return null;
     const [h, m] = pending.deadlineTime.split(":").map(Number);
@@ -207,7 +207,7 @@ const TasksPage = () => {
     ];
     const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const rows = visible.map((t) => {
-      const assignee = employees.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
+      const assignee = members.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
       return [
         t.id,
         t.title,
