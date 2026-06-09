@@ -29,9 +29,9 @@ const isDueNow = (t: Task, nowMs: number) => {
 };
 
 export const ReminderCenter = () => {
-  const { tasks, acknowledgeReminder } = useTasks();
+  const { tasks, acknowledgeReminder, logReminderShown } = useTasks();
   const { role } = useRole();
-  const { impersonatedId } = useAdmin();
+  const { impersonatedId, impersonatedMember } = useAdmin();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -47,6 +47,12 @@ export const ReminderCenter = () => {
     return null; // manager/admin
   }, [role, impersonatedId]);
 
+  const actorLabel = useMemo(() => {
+    if (impersonatedMember) return `${impersonatedMember.name} (impersonated)`;
+    if (role === "field") return "Arjun Mehta";
+    return role === "admin" ? "Admin" : "Manager";
+  }, [impersonatedMember, role]);
+
   const due = useMemo(() => {
     const list = tasks.filter((t) => isDueNow(t, now));
     if (viewerEmployeeId) {
@@ -56,6 +62,11 @@ export const ReminderCenter = () => {
   }, [tasks, now, viewerEmployeeId]);
 
   const current = due[0];
+
+  // Record a "shown" audit entry the first time a reminder surfaces to this viewer.
+  useEffect(() => {
+    if (current) logReminderShown(current.id, actorLabel);
+  }, [current, actorLabel, logReminderShown]);
 
   if (!current) return null;
 
