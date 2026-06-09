@@ -31,7 +31,8 @@ type TasksContextValue = {
   updateTask: (id: string, patch: Partial<Task>) => void;
   reassignTask: (id: string, newAssigneeId: string) => Task | undefined;
   setDeadline: (id: string, iso: string) => { extended: boolean; task: Task } | undefined;
-  acknowledgeReminder: (id: string) => void;
+  acknowledgeReminder: (id: string, actor?: string) => void;
+  logReminderShown: (id: string, actor?: string) => void;
   pendingFor: (employeeId: string) => Task[];
   workloadFor: (employeeId: string) => { score: number; band: WorkloadBand };
   pushAlert: (alert: Omit<Alert, "id" | "time">) => void;
@@ -115,11 +116,45 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
     return createdTask;
   }, []);
 
-  const acknowledgeReminder = useCallback((id: string) => {
+  const acknowledgeReminder = useCallback((id: string, actor?: string) => {
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, reminderAcknowledgedAt: new Date().toISOString() } : t,
-      ),
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const entry = {
+          id: `rl-${Date.now()}`,
+          type: "acknowledged" as const,
+          at: new Date().toISOString(),
+          actor: actor ?? "viewer",
+          reminderAt: t.reminderAt,
+        };
+        return {
+          ...t,
+          reminderAcknowledgedAt: new Date().toISOString(),
+          reminderLog: [...(t.reminderLog ?? []), entry],
+        };
+      }),
+    );
+  }, []);
+
+  const logReminderShown = useCallback((id: string, actor?: string) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        // Dedupe: skip if a "shown" entry already exists for this reminderAt
+        const log = t.reminderLog ?? [];
+        const already = log.some(
+          (e) => e.type === "shown" && e.reminderAt === t.reminderAt,
+        );
+        if (already) return t;
+        const entry = {
+          id: `rl-${Date.now()}`,
+          type: "shown" as const,
+          at: new Date().toISOString(),
+          actor: actor ?? "viewer",
+          reminderAt: t.reminderAt,
+        };
+        return { ...t, reminderLog: [...log, entry] };
+      }),
     );
   }, []);
 
@@ -237,12 +272,13 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
       reassignTask,
       setDeadline,
       acknowledgeReminder,
+      logReminderShown,
       pendingFor,
       workloadFor,
       pushAlert,
       resolveAlert,
     }),
-    [tasks, alerts, addTask, updateTask, reassignTask, setDeadline, acknowledgeReminder, pendingFor, workloadFor, pushAlert, resolveAlert],
+    [tasks, alerts, addTask, updateTask, reassignTask, setDeadline, acknowledgeReminder, logReminderShown, pendingFor, workloadFor, pushAlert, resolveAlert],
   );
 
 

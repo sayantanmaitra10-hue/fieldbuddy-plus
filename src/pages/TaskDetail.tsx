@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   CalendarIcon,
   Users,
+  AlarmClock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSync } from "@/context/SyncContext";
@@ -352,6 +353,74 @@ const TaskDetail = () => {
             </div>
           </div>
         )}
+
+        {/* Reminder audit trail */}
+        <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <AlarmClock className="size-4 text-primary" />
+              <h2 className="font-display font-semibold">Reminder audit trail</h2>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {(t.reminderLog?.length ?? 0)} {((t.reminderLog?.length ?? 0) === 1) ? "event" : "events"}
+            </span>
+          </div>
+          {(t.reminderLog?.length ?? 0) === 0 ? (
+            <div className="text-sm text-muted-foreground py-3">
+              No reminders have fired yet.
+              {t.reminderAt && (
+                <> Next scheduled for{" "}
+                  <span className="font-medium text-foreground">
+                    {new Date(t.reminderAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  </span>.
+                </>
+              )}
+            </div>
+          ) : (
+            <ol className="space-y-2">
+              {[...(t.reminderLog ?? [])]
+                .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                .map((e) => (
+                  <li
+                    key={e.id}
+                    className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/40 text-sm"
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider shrink-0",
+                        e.type === "acknowledged"
+                          ? "bg-success/15 text-success border border-success/30"
+                          : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30",
+                      )}
+                    >
+                      {e.type === "acknowledged" ? (
+                        <CheckCircle2 className="size-3" />
+                      ) : (
+                        <AlarmClock className="size-3" />
+                      )}
+                      {e.type}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium">
+                        {e.type === "acknowledged"
+                          ? `${e.actor ?? "Viewer"} acknowledged the reminder`
+                          : `Reminder shown to ${e.actor ?? "viewer"}`}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(e.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                        {e.reminderAt && (
+                          <>
+                            {" · scheduled for "}
+                            {new Date(e.reminderAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+            </ol>
+          )}
+        </div>
 
         <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
           <div className="flex items-center justify-between mb-4">
