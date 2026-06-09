@@ -121,7 +121,7 @@ export const ReminderCenter = () => {
 
         <AlertDialogFooter>
           <AlertDialogAction
-            onClick={() => acknowledgeReminder(current.id)}
+            onClick={() => acknowledgeReminder(current.id, actorLabel)}
             className="bg-amber-500 text-white hover:bg-amber-500/90"
           >
             I'll handle it
