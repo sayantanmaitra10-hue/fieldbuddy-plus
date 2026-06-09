@@ -272,12 +272,13 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
       reassignTask,
       setDeadline,
       acknowledgeReminder,
+      logReminderShown,
       pendingFor,
       workloadFor,
       pushAlert,
       resolveAlert,
     }),
-    [tasks, alerts, addTask, updateTask, reassignTask, setDeadline, acknowledgeReminder, pendingFor, workloadFor, pushAlert, resolveAlert],
+    [tasks, alerts, addTask, updateTask, reassignTask, setDeadline, acknowledgeReminder, logReminderShown, pendingFor, workloadFor, pushAlert, resolveAlert],
   );
 
 
