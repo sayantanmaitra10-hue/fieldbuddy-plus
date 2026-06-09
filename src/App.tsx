@@ -46,6 +46,7 @@ const App = () => (
                   <Route path="/app/alerts" element={<AppShell><Alerts /></AppShell>} />
                   <Route path="/app/access" element={<AppShell><Access /></AppShell>} />
                   <Route path="/app/admin" element={<AppShell><Admin /></AppShell>} />
+                  <Route path="/app/reminders" element={<AppShell><RemindersAudit /></AppShell>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </AdminProvider>
