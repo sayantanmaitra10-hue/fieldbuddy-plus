@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   CalendarIcon,
   Users,
+  AlarmClock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSync } from "@/context/SyncContext";
