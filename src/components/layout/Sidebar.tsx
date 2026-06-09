@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog } from "lucide-react";
+import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog, History } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
