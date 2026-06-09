@@ -23,6 +23,15 @@ export interface Task {
   reminderOffsetHours?: number; // hours before deadline that an unskippable reminder fires
   reminderAt?: string; // ISO — when the reminder should fire
   reminderAcknowledgedAt?: string; // ISO — when the assignee acknowledged the reminder
+  reminderLog?: ReminderLogEntry[]; // audit trail of reminder shown/acknowledged events
+}
+
+export interface ReminderLogEntry {
+  id: string;
+  type: "shown" | "acknowledged";
+  at: string; // ISO timestamp
+  actor?: string; // who saw/acknowledged (role or member name)
+  reminderAt?: string; // the scheduled reminder this event refers to
 }
 
 
