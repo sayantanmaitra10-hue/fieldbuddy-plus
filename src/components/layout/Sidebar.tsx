@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog } from "lucide-react";
+import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog, History } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
 import { useAdmin } from "@/context/AdminContext";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ const managerNav: NavItem[] = [
   { to: "/app/team", label: "Team", icon: Users },
   { to: "/app/tasks", label: "Tasks", icon: ListChecks },
   { to: "/app/alerts", label: "Alerts", icon: Bell },
+  { to: "/app/reminders", label: "Reminders", icon: History },
   { to: "/app/access", label: "Access", icon: Shield },
 ];
 const adminNav: NavItem[] = [
