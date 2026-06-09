@@ -116,11 +116,45 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
     return createdTask;
   }, []);
 
-  const acknowledgeReminder = useCallback((id: string) => {
+  const acknowledgeReminder = useCallback((id: string, actor?: string) => {
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, reminderAcknowledgedAt: new Date().toISOString() } : t,
-      ),
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        const entry = {
+          id: `rl-${Date.now()}`,
+          type: "acknowledged" as const,
+          at: new Date().toISOString(),
+          actor: actor ?? "viewer",
+          reminderAt: t.reminderAt,
+        };
+        return {
+          ...t,
+          reminderAcknowledgedAt: new Date().toISOString(),
+          reminderLog: [...(t.reminderLog ?? []), entry],
+        };
+      }),
+    );
+  }, []);
+
+  const logReminderShown = useCallback((id: string, actor?: string) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== id) return t;
+        // Dedupe: skip if a "shown" entry already exists for this reminderAt
+        const log = t.reminderLog ?? [];
+        const already = log.some(
+          (e) => e.type === "shown" && e.reminderAt === t.reminderAt,
+        );
+        if (already) return t;
+        const entry = {
+          id: `rl-${Date.now()}`,
+          type: "shown" as const,
+          at: new Date().toISOString(),
+          actor: actor ?? "viewer",
+          reminderAt: t.reminderAt,
+        };
+        return { ...t, reminderLog: [...log, entry] };
+      }),
     );
   }, []);
 
