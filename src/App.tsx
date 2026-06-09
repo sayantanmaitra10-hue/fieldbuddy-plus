@@ -20,6 +20,7 @@ import EmployeeDetail from "./pages/EmployeeDetail";
 import Alerts from "./pages/Alerts";
 import Access from "./pages/Access";
 import Admin from "./pages/Admin";
+import RemindersAudit from "./pages/RemindersAudit";
 
 const queryClient = new QueryClient();
 
