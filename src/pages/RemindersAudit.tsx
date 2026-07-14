@@ -85,7 +85,9 @@ export default function RemindersAudit() {
         !q ||
         r.taskCode.toLowerCase().includes(q) ||
         r.taskTitle.toLowerCase().includes(q) ||
-        r.taskId.toLowerCase().includes(q);
+        r.taskId.toLowerCase().includes(q) ||
+        r.assignee.toLowerCase().includes(q) ||
+        r.actor.toLowerCase().includes(q);
       const matchesStatus = statusFilter === "all" || r.type === statusFilter;
       const matchesAssignee = assigneeFilter === "all" || r.assignee === assigneeFilter;
       return matchesQuery && matchesStatus && matchesAssignee;
