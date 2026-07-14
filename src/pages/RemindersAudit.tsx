@@ -41,10 +41,15 @@ const STATUS_OPTIONS = [
 ] as const;
 
 export default function RemindersAudit() {
+  const { role } = useRole();
   const { tasks } = useTasks();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+
+  if (role === "field") {
+    return <Navigate to="/app/tasks" replace />;
+  }
 
   const allRows = useMemo<AuditRow[]>(() => {
     const rows: AuditRow[] = [];
