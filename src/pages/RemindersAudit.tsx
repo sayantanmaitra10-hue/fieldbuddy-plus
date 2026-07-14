@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { useTasks } from "@/context/TasksContext";
+import { useRole } from "@/context/RoleContext";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
