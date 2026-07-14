@@ -88,6 +88,13 @@ export const tasks: Task[] = [
       { id: "m1", from: "Manager", text: "Please prioritise the HVAC section first.", time: "09:12" },
       { id: "m2", from: "You", text: "On it. Will share photos by noon.", time: "09:14" },
     ],
+    reminderOffsetHours: 12,
+    reminderAt: new Date(new Date("2026-04-22T17:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString(),
+    reminderAcknowledgedAt: new Date(new Date("2026-04-22T05:00:00").getTime()).toISOString(),
+    reminderLog: [
+      { id: "rl-1", type: "shown", at: new Date(new Date("2026-04-22T05:00:00").getTime() - 5 * 60 * 1000).toISOString(), actor: "Arjun Mehta", reminderAt: new Date(new Date("2026-04-22T17:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString() },
+      { id: "rl-2", type: "acknowledged", at: new Date(new Date("2026-04-22T05:00:00").getTime()).toISOString(), actor: "Arjun Mehta", reminderAt: new Date(new Date("2026-04-22T17:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString() },
+    ],
   },
   {
     id: "t2",
@@ -132,6 +139,11 @@ export const tasks: Task[] = [
     priority: "medium",
     proof: [],
     messages: [],
+    reminderOffsetHours: 12,
+    reminderAt: new Date(new Date("2026-04-22T16:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString(),
+    reminderLog: [
+      { id: "rl-3", type: "shown", at: new Date(new Date("2026-04-22T04:00:00").getTime()).toISOString(), actor: "Karan Patel", reminderAt: new Date(new Date("2026-04-22T16:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString() },
+    ],
   },
   {
     id: "t5",

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { useTasks } from "@/context/TasksContext";
+import { useRole } from "@/context/RoleContext";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -40,10 +41,15 @@ const STATUS_OPTIONS = [
 ] as const;
 
 export default function RemindersAudit() {
+  const { role } = useRole();
   const { tasks } = useTasks();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("all");
+
+  if (role === "field") {
+    return <Navigate to="/app/tasks" replace />;
+  }
 
   const allRows = useMemo<AuditRow[]>(() => {
     const rows: AuditRow[] = [];
@@ -79,7 +85,9 @@ export default function RemindersAudit() {
         !q ||
         r.taskCode.toLowerCase().includes(q) ||
         r.taskTitle.toLowerCase().includes(q) ||
-        r.taskId.toLowerCase().includes(q);
+        r.taskId.toLowerCase().includes(q) ||
+        r.assignee.toLowerCase().includes(q) ||
+        r.actor.toLowerCase().includes(q);
       const matchesStatus = statusFilter === "all" || r.type === statusFilter;
       const matchesAssignee = assigneeFilter === "all" || r.assignee === assigneeFilter;
       return matchesQuery && matchesStatus && matchesAssignee;
@@ -115,7 +123,7 @@ export default function RemindersAudit() {
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search by task ID, code, or title..."
+              placeholder="Search by task ID, code, assignee, or title..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
