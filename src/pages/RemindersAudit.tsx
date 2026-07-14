@@ -123,7 +123,7 @@ export default function RemindersAudit() {
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search by task ID, code, or title..."
+              placeholder="Search by task ID, code, assignee, or title..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="pl-9"
