@@ -139,6 +139,11 @@ export const tasks: Task[] = [
     priority: "medium",
     proof: [],
     messages: [],
+    reminderOffsetHours: 12,
+    reminderAt: new Date(new Date("2026-04-22T16:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString(),
+    reminderLog: [
+      { id: "rl-3", type: "shown", at: new Date(new Date("2026-04-22T04:00:00").getTime()).toISOString(), actor: "Karan Patel", reminderAt: new Date(new Date("2026-04-22T16:00:00").getTime() - 12 * 60 * 60 * 1000).toISOString() },
+    ],
   },
   {
     id: "t5",
