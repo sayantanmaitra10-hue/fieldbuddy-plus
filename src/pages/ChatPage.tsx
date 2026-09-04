@@ -181,9 +181,9 @@ const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedThread = searchParams.get("thread");
 
-  const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role, members));
+  const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role, members, activeFieldId));
   const [activeId, setActiveId] = useState<string>(
-    () => requestedThread ?? buildInitialThreads(role, members)[0]?.id ?? "",
+    () => requestedThread ?? buildInitialThreads(role, members, activeFieldId)[0]?.id ?? "",
   );
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
