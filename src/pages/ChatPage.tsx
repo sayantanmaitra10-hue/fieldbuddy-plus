@@ -83,8 +83,13 @@ const buildDirectThread = (employeeId: string, members: TeamMember[]): Thread | 
   };
 };
 
-const buildInitialThreads = (role: "field" | "manager" | "admin", members: TeamMember[]): Thread[] => {
-  const taskScope = role === "field" ? seedTasks.filter((t) => t.assigneeId === "e1") : seedTasks;
+const buildInitialThreads = (
+  role: "field" | "manager" | "admin",
+  members: TeamMember[],
+  activeFieldId?: string,
+): Thread[] => {
+  const taskScope =
+    role === "field" ? seedTasks.filter((t) => t.assigneeId === activeFieldId) : seedTasks;
 
   const taskThreads: Thread[] = taskScope.map((t, i) => ({
     id: `task-${t.id}`,
@@ -162,7 +167,13 @@ const buildInitialThreads = (role: "field" | "manager" | "admin", members: TeamM
 
 const ChatPage = () => {
   const { role } = useRole();
-  const { members } = useAdmin();
+  const { members, impersonatedMember } = useAdmin();
+  // Who "you" are in field view: the impersonated member when active,
+  // otherwise the first field member in the roster.
+  const activeFieldId =
+    impersonatedMember?.appRole === "field"
+      ? impersonatedMember.id
+      : members.find((m) => m.appRole === "field")?.id;
   const { online, enqueue, queue } = useSync();
   const { addTask } = useTasks();
   const { toast } = useToast();
@@ -170,9 +181,9 @@ const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedThread = searchParams.get("thread");
 
-  const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role, members));
+  const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role, members, activeFieldId));
   const [activeId, setActiveId] = useState<string>(
-    () => requestedThread ?? buildInitialThreads(role, members)[0]?.id ?? "",
+    () => requestedThread ?? buildInitialThreads(role, members, activeFieldId)[0]?.id ?? "",
   );
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -206,9 +217,9 @@ const ChatPage = () => {
   const isManager = role === "manager" || role === "admin";
   const draftIntent = useMemo(() => detectIntent(draft), [draft]);
 
-  // Reset threads when role flips
+  // Reset threads when role flips or the active field identity changes
   useEffect(() => {
-    const next = buildInitialThreads(role, members);
+    const next = buildInitialThreads(role, members, activeFieldId);
     setThreads((prev) => {
       // Preserve live messages/unread for threads that already exist.
       const byId = new Map(prev.map((t) => [t.id, t]));
@@ -218,7 +229,7 @@ const ChatPage = () => {
       });
     });
     setActiveId((prev) => (next.find((t) => t.id === prev) ? prev : next[0]?.id ?? ""));
-  }, [role, members]);
+  }, [role, members, activeFieldId]);
 
   // React to ?thread= changes (e.g. navigated from Task detail or Team page)
   useEffect(() => {
@@ -342,10 +353,8 @@ const ChatPage = () => {
     return e?.id ?? null;
   };
 
-  const selfFieldId = (): string => {
-    const first = members.find((e) => e.appRole === "field");
-    return first?.id ?? "e1";
-  };
+  const selfFieldId = (): string =>
+    activeFieldId ?? members.find((e) => e.appRole === "field")?.id ?? "e1";
 
   const defaultAssigneeIdFor = (thread?: Thread): string => {
     if (!thread) return selfFieldId();

@@ -1,11 +1,18 @@
 import { Topbar } from "@/components/layout/Topbar";
 import { PunchInCard } from "@/components/PunchInCard";
 import { TaskCard } from "@/components/TaskCard";
-import { tasks } from "@/lib/mock-data";
+import { useTasks } from "@/context/TasksContext";
+import { useAdmin } from "@/context/AdminContext";
 import { CheckCircle2, ListChecks, Timer } from "lucide-react";
 
 const FieldToday = () => {
-  const mine = tasks.filter((t) => t.assigneeId === "e1");
+  const { tasks } = useTasks();
+  const { members, impersonatedMember } = useAdmin();
+  const activeField =
+    impersonatedMember?.appRole === "field"
+      ? impersonatedMember
+      : members.find((m) => m.appRole === "field");
+  const mine = tasks.filter((t) => t.assigneeId === activeField?.id);
   const stats = [
     { label: "Pending", value: mine.filter((t) => t.status === "pending").length, icon: ListChecks },
     { label: "In Progress", value: mine.filter((t) => t.status === "in_progress").length, icon: Timer },
@@ -14,7 +21,10 @@ const FieldToday = () => {
 
   return (
     <>
-      <Topbar title="Good morning, Arjun" subtitle="Tuesday · 22 April · Bandra Zone A" />
+      <Topbar
+        title={`Good morning, ${activeField?.name.split(" ")[0] ?? "there"}`}
+        subtitle="Tuesday · 22 April · Bandra Zone A"
+      />
       <div className="p-4 lg:p-8 space-y-6 lg:space-y-8 max-w-6xl">
         <div className="animate-fade-up">
           <PunchInCard />

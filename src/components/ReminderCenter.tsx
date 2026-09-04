@@ -31,7 +31,7 @@ const isDueNow = (t: Task, nowMs: number) => {
 export const ReminderCenter = () => {
   const { tasks, acknowledgeReminder, logReminderShown } = useTasks();
   const { role } = useRole();
-  const { impersonatedId, impersonatedMember } = useAdmin();
+  const { members, impersonatedId, impersonatedMember } = useAdmin();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -43,15 +43,15 @@ export const ReminderCenter = () => {
   // Determine the "current viewer" id when in field mode or while impersonating.
   const viewerEmployeeId = useMemo(() => {
     if (impersonatedId) return impersonatedId;
-    if (role === "field") return "e1";
+    if (role === "field") return members.find((m) => m.appRole === "field")?.id ?? null;
     return null; // manager/admin
-  }, [role, impersonatedId]);
+  }, [role, impersonatedId, members]);
 
   const actorLabel = useMemo(() => {
     if (impersonatedMember) return `${impersonatedMember.name} (impersonated)`;
-    if (role === "field") return "Arjun Mehta";
+    if (role === "field") return members.find((m) => m.appRole === "field")?.name ?? "Field User";
     return role === "admin" ? "Admin" : "Manager";
-  }, [impersonatedMember, role]);
+  }, [impersonatedMember, role, members]);
 
   const due = useMemo(() => {
     const list = tasks.filter((t) => isDueNow(t, now));

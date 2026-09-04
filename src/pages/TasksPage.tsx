@@ -192,8 +192,12 @@ const TasksPage = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
   const { tasks: localTasks, addTask } = useTasks();
-  const { members } = useAdmin();
+  const { members, impersonatedMember } = useAdmin();
   const fieldEmployees = members.filter((m) => m.appRole === "field");
+  const activeFieldId =
+    impersonatedMember?.appRole === "field"
+      ? impersonatedMember.id
+      : fieldEmployees[0]?.id;
   const [active, setActive] = useState<typeof tabs[number]>("In Progress");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -214,7 +218,7 @@ const TasksPage = () => {
     mode: "onTouched",
   });
 
-  const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === "e1") : localTasks).filter(
+  const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === activeFieldId) : localTasks).filter(
     (t) => {
       const map = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
       const ql = q.toLowerCase();
@@ -618,7 +622,7 @@ const TasksPage = () => {
             >
               {t}{" "}
               <span className="opacity-60 ml-1">
-                {(role === "field" ? localTasks.filter((x) => x.assigneeId === "e1") : localTasks).filter((x) => {
+                {(role === "field" ? localTasks.filter((x) => x.assigneeId === activeFieldId) : localTasks).filter((x) => {
                   const m = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
                   return x.status === m[t];
                 }).length}
