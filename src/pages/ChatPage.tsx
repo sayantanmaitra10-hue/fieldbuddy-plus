@@ -167,7 +167,13 @@ const buildInitialThreads = (
 
 const ChatPage = () => {
   const { role } = useRole();
-  const { members } = useAdmin();
+  const { members, impersonatedMember } = useAdmin();
+  // Who "you" are in field view: the impersonated member when active,
+  // otherwise the first field member in the roster.
+  const activeFieldId =
+    impersonatedMember?.appRole === "field"
+      ? impersonatedMember.id
+      : members.find((m) => m.appRole === "field")?.id;
   const { online, enqueue, queue } = useSync();
   const { addTask } = useTasks();
   const { toast } = useToast();
