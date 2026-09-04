@@ -31,7 +31,7 @@ const isDueNow = (t: Task, nowMs: number) => {
 export const ReminderCenter = () => {
   const { tasks, acknowledgeReminder, logReminderShown } = useTasks();
   const { role } = useRole();
-  const { impersonatedId, impersonatedMember } = useAdmin();
+  const { members, impersonatedId, impersonatedMember } = useAdmin();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
