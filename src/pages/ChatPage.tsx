@@ -83,8 +83,13 @@ const buildDirectThread = (employeeId: string, members: TeamMember[]): Thread | 
   };
 };
 
-const buildInitialThreads = (role: "field" | "manager" | "admin", members: TeamMember[]): Thread[] => {
-  const taskScope = role === "field" ? seedTasks.filter((t) => t.assigneeId === "e1") : seedTasks;
+const buildInitialThreads = (
+  role: "field" | "manager" | "admin",
+  members: TeamMember[],
+  activeFieldId?: string,
+): Thread[] => {
+  const taskScope =
+    role === "field" ? seedTasks.filter((t) => t.assigneeId === activeFieldId) : seedTasks;
 
   const taskThreads: Thread[] = taskScope.map((t, i) => ({
     id: `task-${t.id}`,
