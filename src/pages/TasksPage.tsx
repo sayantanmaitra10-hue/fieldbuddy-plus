@@ -218,7 +218,7 @@ const TasksPage = () => {
     mode: "onTouched",
   });
 
-  const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === "e1") : localTasks).filter(
+  const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === activeFieldId) : localTasks).filter(
     (t) => {
       const map = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
       const ql = q.toLowerCase();
@@ -622,7 +622,7 @@ const TasksPage = () => {
             >
               {t}{" "}
               <span className="opacity-60 ml-1">
-                {(role === "field" ? localTasks.filter((x) => x.assigneeId === "e1") : localTasks).filter((x) => {
+                {(role === "field" ? localTasks.filter((x) => x.assigneeId === activeFieldId) : localTasks).filter((x) => {
                   const m = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
                   return x.status === m[t];
                 }).length}
