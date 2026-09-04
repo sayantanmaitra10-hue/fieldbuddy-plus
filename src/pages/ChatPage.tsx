@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { tasks as seedTasks } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
+import { useAdmin, type TeamMember } from "@/context/AdminContext";
 import { useTasks } from "@/context/TasksContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -161,6 +162,7 @@ const buildInitialThreads = (role: "field" | "manager" | "admin", members: TeamM
 
 const ChatPage = () => {
   const { role } = useRole();
+  const { members } = useAdmin();
   const { online, enqueue, queue } = useSync();
   const { addTask } = useTasks();
   const { toast } = useToast();
