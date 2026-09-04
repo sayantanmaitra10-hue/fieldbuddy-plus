@@ -353,10 +353,8 @@ const ChatPage = () => {
     return e?.id ?? null;
   };
 
-  const selfFieldId = (): string => {
-    const first = members.find((e) => e.appRole === "field");
-    return first?.id ?? "e1";
-  };
+  const selfFieldId = (): string =>
+    activeFieldId ?? members.find((e) => e.appRole === "field")?.id ?? "e1";
 
   const defaultAssigneeIdFor = (thread?: Thread): string => {
     if (!thread) return selfFieldId();
