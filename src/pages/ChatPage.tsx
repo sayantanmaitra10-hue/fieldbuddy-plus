@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
-import { tasks as seedTasks, employees } from "@/lib/mock-data";
+import { tasks as seedTasks } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
 import { useTasks } from "@/context/TasksContext";
 import { Button } from "@/components/ui/button";
@@ -68,8 +68,8 @@ const initialsOf = (s: string) =>
     .join("")
     .toUpperCase();
 
-const buildDirectThread = (employeeId: string): Thread | null => {
-  const e = employees.find((x) => x.id === employeeId);
+const buildDirectThread = (employeeId: string, members: TeamMember[]): Thread | null => {
+  const e = members.find((x) => x.id === employeeId);
   if (!e) return null;
   return {
     id: `dm-${e.id}`,
@@ -82,7 +82,7 @@ const buildDirectThread = (employeeId: string): Thread | null => {
   };
 };
 
-const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
+const buildInitialThreads = (role: "field" | "manager" | "admin", members: TeamMember[]): Thread[] => {
   const taskScope = role === "field" ? seedTasks.filter((t) => t.assigneeId === "e1") : seedTasks;
 
   const taskThreads: Thread[] = taskScope.map((t, i) => ({
@@ -144,8 +144,8 @@ const buildInitialThreads = (role: "field" | "manager" | "admin"): Thread[] => {
             messages: [],
           },
         ]
-      : employees
-          .filter((e) => e.role.toLowerCase().includes("field"))
+      : members
+          .filter((e) => e.appRole === "field")
           .map((e) => ({
             id: `dm-${e.id}`,
             kind: "direct" as const,
@@ -168,9 +168,9 @@ const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedThread = searchParams.get("thread");
 
-  const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role));
+  const [threads, setThreads] = useState<Thread[]>(() => buildInitialThreads(role, members));
   const [activeId, setActiveId] = useState<string>(
-    () => requestedThread ?? buildInitialThreads(role)[0]?.id ?? "",
+    () => requestedThread ?? buildInitialThreads(role, members)[0]?.id ?? "",
   );
   const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
@@ -206,10 +206,17 @@ const ChatPage = () => {
 
   // Reset threads when role flips
   useEffect(() => {
-    const next = buildInitialThreads(role);
-    setThreads(next);
+    const next = buildInitialThreads(role, members);
+    setThreads((prev) => {
+      // Preserve live messages/unread for threads that already exist.
+      const byId = new Map(prev.map((t) => [t.id, t]));
+      return next.map((t) => {
+        const existing = byId.get(t.id);
+        return existing ? { ...t, messages: existing.messages, unread: existing.unread } : t;
+      });
+    });
     setActiveId((prev) => (next.find((t) => t.id === prev) ? prev : next[0]?.id ?? ""));
-  }, [role]);
+  }, [role, members]);
 
   // React to ?thread= changes (e.g. navigated from Task detail or Team page)
   useEffect(() => {
@@ -218,7 +225,7 @@ const ChatPage = () => {
       // Lazily materialise a DM thread if not yet present
       if (!prev.find((t) => t.id === requestedThread)) {
         if (requestedThread.startsWith("dm-") && isManager) {
-          const dm = buildDirectThread(requestedThread.replace(/^dm-/, ""));
+          const dm = buildDirectThread(requestedThread.replace(/^dm-/, ""), members);
           if (dm) return [dm, ...prev];
         }
         return prev;
@@ -228,7 +235,7 @@ const ChatPage = () => {
     
     setActiveId(requestedThread);
     setShowListMobile(false);
-  }, [requestedThread, isManager]);
+  }, [requestedThread, isManager, members]);
 
   const active = threads.find((t) => t.id === activeId);
 
@@ -329,12 +336,12 @@ const ChatPage = () => {
 
   // Map an inbound message sender name to an employee id, falling back to thread default
   const senderToAssigneeId = (fromName: string): string | null => {
-    const e = employees.find((x) => x.name === fromName);
+    const e = members.find((x) => x.name === fromName);
     return e?.id ?? null;
   };
 
   const selfFieldId = (): string => {
-    const first = employees.find((e) => e.role.toLowerCase().includes("field"));
+    const first = members.find((e) => e.appRole === "field");
     return first?.id ?? "e1";
   };
 
@@ -348,7 +355,7 @@ const ChatPage = () => {
     if (thread.kind === "direct") {
       // dm-manager (field-side) has no employee record → fall back to self.
       const id = thread.id.replace(/^dm-/, "");
-      const exists = employees.find((e) => e.id === id);
+      const exists = members.find((e) => e.id === id);
       if (exists) return exists.id;
       return selfFieldId();
     }
