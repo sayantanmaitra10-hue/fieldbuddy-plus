@@ -229,7 +229,7 @@ const ChatPage = () => {
       });
     });
     setActiveId((prev) => (next.find((t) => t.id === prev) ? prev : next[0]?.id ?? ""));
-  }, [role, members]);
+  }, [role, members, activeFieldId]);
 
   // React to ?thread= changes (e.g. navigated from Task detail or Team page)
   useEffect(() => {
