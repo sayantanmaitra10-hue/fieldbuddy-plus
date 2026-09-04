@@ -217,9 +217,9 @@ const ChatPage = () => {
   const isManager = role === "manager" || role === "admin";
   const draftIntent = useMemo(() => detectIntent(draft), [draft]);
 
-  // Reset threads when role flips
+  // Reset threads when role flips or the active field identity changes
   useEffect(() => {
-    const next = buildInitialThreads(role, members);
+    const next = buildInitialThreads(role, members, activeFieldId);
     setThreads((prev) => {
       // Preserve live messages/unread for threads that already exist.
       const byId = new Map(prev.map((t) => [t.id, t]));
