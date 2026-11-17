@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
+import { isDemoMode } from "@/lib/runtime-config";
 import { employees } from "@/lib/mock-data";
 import { TaskCard } from "@/components/TaskCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -13,6 +14,14 @@ const EmployeeDetail = () => {
   const navigate = useNavigate();
   const { role } = useRole();
   const { tasks } = useTasks();
+  if (!isDemoMode) {
+    return (
+      <>
+        <Topbar title="Employee details" subtitle="Organization directory" />
+        <div className="p-8 text-sm text-muted-foreground">Employee detail records will appear after the organization directory and task services are connected.</div>
+      </>
+    );
+  }
   const e = employees.find((x) => x.id === id);
   if (!e) return <div className="p-8">Not found</div>;
   const myTasks = tasks.filter((t) => t.assigneeId === e.id);
