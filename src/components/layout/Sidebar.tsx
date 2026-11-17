@@ -1,5 +1,5 @@
-import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog, History } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog, History, LogOut } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,8 @@ export const Sidebar = () => {
   const { role, setRole, availableRoles, canSwitch } = useRole();
   const items = role === "field" ? fieldNav : role === "admin" ? adminNav : managerNav;
   const location = useLocation();
-  const { user, activeMembership } = useAuth();
+  const navigate = useNavigate();
+  const { user, activeMembership, signOut } = useAuth();
   const displayName = user?.user_metadata?.display_name ?? user?.email ?? "Workspace user";
   const displayAvatar = String(displayName).split(" ").slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 
@@ -105,7 +106,7 @@ export const Sidebar = () => {
               {location.pathname}
             </div>
           </div>
-          <Settings className="size-4 text-sidebar-foreground/60" />
+          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => void signOut().then(() => navigate("/login"))} className="rounded-md p-2 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"><LogOut className="size-4" /></button>
         </div>
       </div>
     </aside>
