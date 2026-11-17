@@ -1,664 +1,291 @@
-import { useState } from "react";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Topbar } from "@/components/layout/Topbar";
-import { isDemoMode } from "@/lib/runtime-config";
-import { TaskCard } from "@/components/TaskCard";
-import { type Task } from "@/lib/mock-data";
+import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
-import { useSync } from "@/context/SyncContext";
-import { useTasks } from "@/context/TasksContext";
-import { useAdmin } from "@/context/AdminContext";
-import { Plus, Search, CalendarIcon, AlertCircle, Download } from "lucide-react";
+import {
+  createOrganizationTask,
+  getOrganizationAssignees,
+  getOrganizationTasks,
+  transitionOrganizationTask,
+  type OrganizationTask,
+  type TaskAssignee,
+  type TaskPriority,
+  type TaskStatus,
+} from "@/lib/task-service";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
-import {
-  TINY_REMINDER_CHOICES,
-  defaultReminderOffsetHours,
-  formatOffset,
-  taskSizeFor,
-} from "@/lib/reminder";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Plus, RefreshCw, ListChecks, Check, X, Play, Send } from "lucide-react";
 
-
-const tabs = ["Pending", "In Progress", "Completed"] as const;
-
-
-
-
-const taskSchema = z
-  .object({
-    title: z
-      .string()
-      .trim()
-      .min(3, { message: "Title must be at least 3 characters" })
-      .max(120, { message: "Title must be under 120 characters" }),
-    assigneeId: z.string().min(1, { message: "Please select an assignee" }),
-    deadlineDate: z.date({ required_error: "Deadline date is required" }),
-    deadlineTime: z
-      .string()
-      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, { message: "Use HH:MM (24h) format" }),
-    priority: z.enum(["low", "medium", "high"], {
-      required_error: "Select a priority",
-    }),
-    description: z
-      .string()
-      .trim()
-      .max(500, { message: "Description must be under 500 characters" })
-      .optional(),
-    reminderOffsetHours: z.coerce.number().positive().optional(),
-  })
-  .refine(
-    (data) => {
-      const [h, m] = data.deadlineTime.split(":").map(Number);
-      const dl = new Date(data.deadlineDate);
-      dl.setHours(h, m, 0, 0);
-      return dl.getTime() > Date.now();
-    },
-    { message: "Deadline must be in the future", path: ["deadlineDate"] },
-  )
-  .refine(
-    (data) => {
-      const [h, m] = data.deadlineTime.split(":").map(Number);
-      const dl = new Date(data.deadlineDate);
-      dl.setHours(h, m, 0, 0);
-      const etaH = (dl.getTime() - Date.now()) / (1000 * 60 * 60);
-      // For tiny tasks (<3h ETA) the manager must pick a reminder offset.
-      if (etaH < 3) return data.reminderOffsetHours != null;
-      return true;
-    },
-    { message: "Pick a reminder timing for this short task", path: ["reminderOffsetHours"] },
-  );
-
-type TaskForm = z.infer<typeof taskSchema>;
-
-const ReminderField = ({
-  control,
-  watch,
-  setValue,
-}: {
-  control: ReturnType<typeof useForm<TaskForm>>["control"];
-  watch: ReturnType<typeof useForm<TaskForm>>["watch"];
-  setValue: ReturnType<typeof useForm<TaskForm>>["setValue"];
-}) => {
-  const date = watch("deadlineDate");
-  const time = watch("deadlineTime");
-  const reminderValue = watch("reminderOffsetHours");
-
-  const etaHours = (() => {
-    if (!date || !time) return null;
-    const [h, m] = time.split(":").map(Number);
-    if (Number.isNaN(h) || Number.isNaN(m)) return null;
-    const dl = new Date(date);
-    dl.setHours(h, m, 0, 0);
-    return (dl.getTime() - Date.now()) / (1000 * 60 * 60);
-  })();
-
-  if (etaHours == null || etaHours <= 0) return null;
-  const size = taskSizeFor(etaHours);
-
-  if (size !== "tiny") {
-    const offset = defaultReminderOffsetHours(etaHours)!;
-    return (
-      <div className="rounded-lg border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground capitalize">{size} task</span>{" "}
-        · Unskippable reminder fires <span className="font-medium text-foreground">{formatOffset(offset)}</span>.
-      </div>
-    );
-  }
-
-  // Tiny task — manager must pick a reminder offset (capped to ETA - 1min)
-  const choices = TINY_REMINDER_CHOICES.filter((c) => c.hours < etaHours);
-  return (
-    <FormField
-      control={control}
-      name="reminderOffsetHours"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>
-            Reminder timing <span className="text-destructive">*</span>
-          </FormLabel>
-          <Select
-            value={field.value != null ? String(field.value) : ""}
-            onValueChange={(v) => setValue("reminderOffsetHours", parseFloat(v), { shouldValidate: true })}
-          >
-            <FormControl>
-              <SelectTrigger>
-                <SelectValue placeholder="When should we remind the assignee?" />
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent className="bg-popover">
-              {choices.map((c) => (
-                <SelectItem key={c.label} value={String(c.hours)}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Short task (under 3h ETA) — choose when the unskippable reminder fires.
-          </p>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  );
+const statusLabels: Record<TaskStatus, string> = {
+  assigned: "Assigned",
+  accepted: "Accepted",
+  in_progress: "In progress",
+  submitted: "Awaiting review",
+  approved: "Approved",
+  rejected: "Needs changes",
+  cancelled: "Cancelled",
 };
 
+const priorityLabels: Record<TaskPriority, string> = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
+  urgent: "Urgent",
+};
 
-
-
-const TasksPageDemo = () => {
-  const { role } = useRole();
-  const { online, enqueue, queue } = useSync();
-  const { tasks: localTasks, addTask } = useTasks();
-  const { members, impersonatedMember } = useAdmin();
-  const fieldEmployees = members.filter((m) => m.appRole === "field");
-  const activeFieldId =
-    impersonatedMember?.appRole === "field"
-      ? impersonatedMember.id
-      : fieldEmployees[0]?.id;
-  const [active, setActive] = useState<typeof tabs[number]>("In Progress");
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pending, setPending] = useState<TaskForm | null>(null);
-  const [pendingSyncIds, setPendingSyncIds] = useState<Record<string, string>>({});
-  const { toast } = useToast();
-
-  const form = useForm<TaskForm>({
-    resolver: zodResolver(taskSchema),
-    defaultValues: {
-      title: "",
-      assigneeId: "",
-      deadlineTime: "17:00",
-      priority: "medium",
-      description: "",
-    },
-    mode: "onTouched",
-  });
-
-  const visible = (role === "field" ? localTasks.filter((t) => t.assigneeId === activeFieldId) : localTasks).filter(
-    (t) => {
-      const map = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
-      const ql = q.toLowerCase();
-      return t.status === map[active] && (t.title.toLowerCase().includes(ql) || t.code.toLowerCase().includes(ql));
-    },
-  );
-
-  const onSubmit = (data: TaskForm) => {
-    setPending(data);
-    setConfirmOpen(true);
-  };
-
-  const confirmAssign = () => {
-    if (!pending) return;
-    const assignee = members.find((e) => e.id === pending.assigneeId);
-    const [h, m] = pending.deadlineTime.split(":").map(Number);
-    const dl = new Date(pending.deadlineDate);
-    dl.setHours(h, m, 0, 0);
-
-    const newTask = addTask({
-      title: pending.title,
-      description: pending.description ?? "",
-      assigneeId: pending.assigneeId,
-      deadline: dl.toISOString(),
-      priority: pending.priority,
-      source: "manual",
-      reminderOffsetHours: pending.reminderOffsetHours,
-    });
-
-
-    if (!online) {
-      const qid = enqueue({ kind: "task", label: `New task ${newTask.code}: ${pending.title}` });
-      setPendingSyncIds((prev) => ({ ...prev, [newTask.id]: qid }));
-      toast({
-        title: `Task ${newTask.code} queued (offline)`,
-        description: `"${pending.title}" → ${assignee?.name} · will sync when online`,
-      });
-    } else {
-      toast({
-        title: `Task ${newTask.code} assigned`,
-        description: `"${pending.title}" → ${assignee?.name} · due ${format(dl, "MMM d, HH:mm")}`,
-      });
-    }
-    form.reset();
-    setPending(null);
-    setConfirmOpen(false);
-    setOpen(false);
-  };
-
-  const pendingAssignee = pending ? members.find((e) => e.id === pending.assigneeId) : null;
-  const pendingDeadline = (() => {
-    if (!pending) return null;
-    const [h, m] = pending.deadlineTime.split(":").map(Number);
-    const dl = new Date(pending.deadlineDate);
-    dl.setHours(h, m, 0, 0);
-    return dl;
-  })();
-
-  // Resolve pending-sync ids: once they leave the queue, drop the marker
-  const isStillPending = (taskId: string) => {
-    const qid = pendingSyncIds[taskId];
-    return !!qid && queue.some((q) => q.id === qid);
-  };
-
-
-  const errorCount = Object.keys(form.formState.errors).length;
-
-  const exportCsv = () => {
-    if (visible.length === 0) {
-      toast({ title: "Nothing to export", description: "No tasks match the current filters." });
-      return;
-    }
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    // Excel-friendly local datetime: "yyyy-MM-dd HH:mm:ss" (no T, no Z) — Excel parses as a real date.
-    const fmtLocal = (iso?: string) => (iso ? format(new Date(iso), "yyyy-MM-dd HH:mm:ss") : "");
-    const fmtUtc = (iso?: string) => (iso ? new Date(iso).toISOString() : "");
-
-    const headers = [
-      "ID",
-      "Title",
-      "Status",
-      "Priority",
-      "Assignee",
-      `Deadline (Local ${tz})`,
-      "Deadline (UTC ISO 8601)",
-      "Source",
-      "Description",
-    ];
-    const escape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = visible.map((t) => {
-      const assignee = members.find((e) => e.id === t.assigneeId)?.name ?? t.assignee ?? "";
-      return [
-        t.id,
-        t.title,
-        t.status,
-        t.priority,
-        assignee,
-        fmtLocal(t.deadline),
-        fmtUtc(t.deadline),
-        t.source ?? "manual",
-        t.description ?? "",
-      ]
-        .map(escape)
-        .join(",");
-    });
-    // Prepend UTF-8 BOM so Excel opens it with correct encoding.
-    const csv = "\uFEFF" + [headers.map(escape).join(","), ...rows].join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const stamp = format(new Date(), "yyyyMMdd-HHmm");
-    a.href = url;
-    a.download = `tasks-${active.toLowerCase().replace(" ", "-")}-${stamp}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast({
-      title: "Exported",
-      description: `${visible.length} task${visible.length === 1 ? "" : "s"} exported · times in ${tz} + UTC.`,
-    });
-  };
-
-  return (
-    <>
-      <Topbar title="Tasks" subtitle={role === "field" ? "Your assignments" : "All field operations"} />
-      <div className="p-4 lg:p-8 space-y-5 max-w-6xl">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search tasks…"
-              className="pl-9 bg-card"
-            />
-          </div>
-          <Button
-            variant="outline"
-            onClick={exportCsv}
-            aria-label="Export tasks to CSV"
-          >
-            <Download className="size-4 mr-1.5" /> Export CSV
-          </Button>
-          {role !== "field" && (
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
-                  <Plus className="size-4 mr-1.5" /> New Task
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="font-display">Create new task</DialogTitle>
-                  <DialogDescription>
-                    Assign a task to a field user. They'll be notified instantly.
-                  </DialogDescription>
-                </DialogHeader>
-
-                {form.formState.isSubmitted && errorCount > 0 && (
-                  <Alert variant="destructive" className="border-destructive/30">
-                    <AlertCircle className="size-4" />
-                    <AlertDescription>
-                      Please fix {errorCount} {errorCount === 1 ? "error" : "errors"} below.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="title"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            Title <span className="text-destructive">*</span>
-                          </FormLabel>
-                          <FormControl>
-                            <Input placeholder="e.g. Site survey — Bandra outlet" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="assigneeId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            Assignee <span className="text-destructive">*</span>
-                          </FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select field user" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="bg-popover">
-                              {fieldEmployees.map((e) => (
-                                <SelectItem key={e.id} value={e.id}>
-                                  <span className="flex items-center gap-2">
-                                    <span className="size-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold inline-flex items-center justify-center">
-                                      {e.avatar}
-                                    </span>
-                                    {e.name}
-                                    <span className="text-muted-foreground text-xs">· {e.location.split(",")[0]}</span>
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField
-                        control={form.control}
-                        name="deadlineDate"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel>
-                              Deadline date <span className="text-destructive">*</span>
-                            </FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      "pl-3 text-left font-normal h-10",
-                                      !field.value && "text-muted-foreground",
-                                    )}
-                                  >
-                                    {field.value ? format(field.value, "MMM d, yyyy") : <span>Pick a date</span>}
-                                    <CalendarIcon className="ml-auto size-4 opacity-50" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0 bg-popover" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value}
-                                  onSelect={field.onChange}
-                                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                                  initialFocus
-                                  className={cn("p-3 pointer-events-auto")}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="deadlineTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              Time <span className="text-destructive">*</span>
-                            </FormLabel>
-                            <FormControl>
-                              <Input type="time" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="priority"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Priority</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent className="bg-popover">
-                              <SelectItem value="low">Low</SelectItem>
-                              <SelectItem value="medium">Medium</SelectItem>
-                              <SelectItem value="high">High</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <ReminderField control={form.control} watch={form.watch} setValue={form.setValue} />
-
-
-
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Description</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              rows={3}
-                              placeholder="Brief instructions, expected outcome, references…"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <DialogFooter className="gap-2 pt-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          form.reset();
-                          setOpen(false);
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                        Assign Task
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-
-        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="font-display">Confirm task assignment</AlertDialogTitle>
-              <AlertDialogDescription>
-                Review the details below before assigning. The assignee will be notified.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-
-            {pending && (
-              <div className="rounded-lg border bg-muted/40 divide-y text-sm">
-                <div className="flex justify-between gap-4 px-4 py-2.5">
-                  <span className="text-muted-foreground">Title</span>
-                  <span className="font-medium text-right">{pending.title}</span>
-                </div>
-                <div className="flex justify-between gap-4 px-4 py-2.5">
-                  <span className="text-muted-foreground">Assignee</span>
-                  <span className="font-medium text-right flex items-center gap-2">
-                    <span className="size-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold inline-flex items-center justify-center">
-                      {pendingAssignee?.avatar}
-                    </span>
-                    {pendingAssignee?.name}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4 px-4 py-2.5">
-                  <span className="text-muted-foreground">Deadline</span>
-                  <span className="font-medium text-right">
-                    {pendingDeadline ? format(pendingDeadline, "EEE, MMM d · HH:mm") : ""}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4 px-4 py-2.5">
-                  <span className="text-muted-foreground">Priority</span>
-                  <span className="font-medium text-right capitalize">{pending.priority}</span>
-                </div>
-              </div>
-            )}
-
-            <AlertDialogFooter>
-              <AlertDialogCancel>Go back & edit</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmAssign}
-                className="bg-primary text-primary-foreground hover:bg-primary/90"
-              >
-                Confirm & assign
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              onClick={() => setActive(t)}
-              className={`px-3.5 py-1.5 text-sm rounded-md font-medium transition-all ${
-                active === t ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t}{" "}
-              <span className="opacity-60 ml-1">
-                {(role === "field" ? localTasks.filter((x) => x.assigneeId === activeFieldId) : localTasks).filter((x) => {
-                  const m = { Pending: "pending", "In Progress": "in_progress", Completed: "completed" } as const;
-                  return x.status === m[t];
-                }).length}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {visible.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground text-sm">No tasks in this view.</div>
-        ) : (
-          <div className="grid sm:grid-cols-2 gap-3">
-            {visible.map((t) => (
-              <TaskCard key={t.id} task={t} pendingSync={isStillPending(t.id)} />
-            ))}
-          </div>
-        )}
-      </div>
-    </>
-  );
+const employeeNextStatus: Partial<Record<TaskStatus, TaskStatus>> = {
+  assigned: "accepted",
+  accepted: "in_progress",
+  in_progress: "submitted",
+  rejected: "in_progress",
 };
 
 const TasksPage = () => {
-  if (isDemoMode) return <TasksPageDemo />;
+  const { activeMembership, user } = useAuth();
+  const { role } = useRole();
+  const { toast } = useToast();
+  const organizationId = activeMembership?.organization_id;
+  const canManage = role === "manager" || role === "admin";
+  const [tasks, setTasks] = useState<OrganizationTask[]>([]);
+  const [assignees, setAssignees] = useState<TaskAssignee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [busyTaskId, setBusyTaskId] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("normal");
+  const [filter, setFilter] = useState<"all" | "open" | "review" | "closed">("all");
+
+  const refresh = useCallback(async (quiet = false) => {
+    if (!organizationId) {
+      setTasks([]);
+      setLoading(false);
+      return;
+    }
+    if (quiet) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const rows = await getOrganizationTasks(organizationId);
+      setTasks(rows);
+      if (canManage) {
+        const team = await getOrganizationAssignees(organizationId);
+        setAssignees(team);
+        if (!assignedTo && team.length > 0) setAssignedTo(team[0].user_id);
+      }
+    } catch (error) {
+      toast({
+        title: "Unable to load tasks",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [organizationId, canManage, assignedTo, toast]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!organizationId || !assignedTo) return;
+    setCreating(true);
+    try {
+      await createOrganizationTask({
+        organizationId,
+        title,
+        description,
+        assignedTo,
+        dueAt: dueAt ? new Date(dueAt).toISOString() : null,
+        priority,
+      });
+      toast({ title: "Task created", description: "The task has been assigned to the selected employee." });
+      setTitle("");
+      setDescription("");
+      setDueAt("");
+      setPriority("normal");
+      setShowCreate(false);
+      await refresh(true);
+    } catch (error) {
+      toast({
+        title: "Task creation failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleTransition(task: OrganizationTask, nextStatus: TaskStatus) {
+    if (!organizationId) return;
+    setBusyTaskId(task.id);
+    try {
+      await transitionOrganizationTask({ organizationId, taskId: task.id, nextStatus });
+      toast({ title: "Task updated", description: `Status changed to ${statusLabels[nextStatus]}.` });
+      await refresh(true);
+    } catch (error) {
+      toast({
+        title: "Could not update task",
+        description: error instanceof Error ? error.message : "Refresh and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyTaskId(null);
+    }
+  }
+
+  const visibleTasks = tasks.filter((task) => {
+    if (filter === "open") return !["approved", "cancelled"].includes(task.status);
+    if (filter === "review") return task.status === "submitted";
+    if (filter === "closed") return ["approved", "cancelled"].includes(task.status);
+    return true;
+  });
+
   return (
     <>
-      <Topbar title="Tasks" subtitle="Organization task execution" />
-      <div className="p-6 lg:p-8">
-        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-          <AlertCircle className="mx-auto mb-3 size-7 text-muted-foreground" />
-          <h2 className="font-semibold">Task services are not connected yet</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Demo tasks are disabled. Task assignment, status transitions, evidence uploads, and approvals will be enabled after the secure task backend is implemented.
-          </p>
+      <Topbar title="Tasks" subtitle={activeMembership?.organization_name ?? "Organization task execution"} />
+      <div className="mx-auto max-w-6xl space-y-5 p-4 lg:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-lg font-semibold">Task board</h2>
+            <p className="text-xs text-muted-foreground">Assignments and status changes are stored on the server.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => void refresh(true)} disabled={refreshing}>
+              <RefreshCw className={`mr-2 size-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+            {canManage && (
+              <Button size="sm" onClick={() => setShowCreate((value) => !value)}>
+                <Plus className="mr-2 size-4" /> New task
+              </Button>
+            )}
+          </div>
         </div>
+
+        {showCreate && canManage && (
+          <form onSubmit={handleCreate} className="grid gap-4 rounded-xl border border-border bg-card p-5 shadow-card md:grid-cols-2">
+            <div className="grid gap-1.5 md:col-span-2">
+              <Label htmlFor="task-title">Task title</Label>
+              <Input id="task-title" required minLength={3} maxLength={240} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Visit assigned customer location" />
+            </div>
+            <div className="grid gap-1.5 md:col-span-2">
+              <Label htmlFor="task-description">Description</Label>
+              <Textarea id="task-description" maxLength={10000} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Add instructions, expected outcome or supporting details." />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="task-assignee">Assign to</Label>
+              <select id="task-assignee" required value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">Select an employee</option>
+                {assignees.map((person) => (
+                  <option key={person.user_id} value={person.user_id}>
+                    {person.display_name}{person.employee_id ? ` · ${person.employee_id}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="task-due">Due date and time</Label>
+              <Input id="task-due" type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="task-priority">Priority</Label>
+              <select id="task-priority" value={priority} onChange={(event) => setPriority(event.target.value as TaskPriority)} className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                {Object.entries(priorityLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              <Button type="submit" disabled={creating || !assignedTo}>
+                {creating ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Plus className="mr-2 size-4" />}
+                Create task
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+            </div>
+          </form>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {([
+            ["all", "All tasks"],
+            ["open", "Open"],
+            ["review", "Awaiting review"],
+            ["closed", "Closed"],
+          ] as const).map(([value, label]) => (
+            <Button key={value} size="sm" variant={filter === value ? "default" : "outline"} onClick={() => setFilter(value)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        {loading ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Loading organization tasks…</div>
+        ) : visibleTasks.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card px-5 py-12 text-center">
+            <ListChecks className="mx-auto mb-3 size-7 text-muted-foreground" />
+            <p className="font-medium">No tasks in this view</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {canManage ? "Create a task and assign it to an active organization member." : "Tasks assigned to your account will appear here."}
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            {visibleTasks.map((task) => {
+              const isAssignee = task.assigned_to === user?.id;
+              const nextStatus = isAssignee ? employeeNextStatus[task.status] : undefined;
+              const canReview = canManage && task.status === "submitted";
+              const canCancel = canManage && !["approved", "cancelled"].includes(task.status);
+              const busy = busyTaskId === task.id;
+              return (
+                <article key={task.id} className="rounded-xl border border-border bg-card p-5 shadow-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold leading-snug">{task.title}</h3>
+                      {task.description && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{task.description}</p>}
+                    </div>
+                    <Badge variant="outline">{priorityLabels[task.priority]}</Badge>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="secondary">{statusLabels[task.status]}</Badge>
+                    {task.due_at && <span>Due {new Date(task.due_at).toLocaleString("en-IN")}</span>}
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {nextStatus && (
+                      <Button size="sm" disabled={busy} onClick={() => void handleTransition(task, nextStatus)}>
+                        {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : nextStatus === "submitted" ? <Send className="mr-1 size-3.5" /> : <Play className="mr-1 size-3.5" />}
+                        {nextStatus === "accepted" ? "Accept" : nextStatus === "in_progress" ? "Start / Resume" : "Submit for review"}
+                      </Button>
+                    )}
+                    {canReview && (
+                      <>
+                        <Button size="sm" disabled={busy} onClick={() => void handleTransition(task, "approved")}>
+                          <Check className="mr-1 size-3.5" /> Approve
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => void handleTransition(task, "rejected")}>
+                          <X className="mr-1 size-3.5" /> Request changes
+                        </Button>
+                      </>
+                    )}
+                    {canCancel && (
+                      <Button size="sm" variant="ghost" disabled={busy} onClick={() => void handleTransition(task, "cancelled")}>
+                        Cancel task
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );
