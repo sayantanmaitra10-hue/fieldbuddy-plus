@@ -49,13 +49,13 @@ const App = () => (
                     <Route path="/app/tasks" element={<TasksPage />} />
                     <Route path="/app/tasks/:id" element={<TaskDetail />} />
                     <Route path="/app/chat" element={<ChatPage />} />
-                    <Route path="/app/dashboard" element={<Dashboard />} />
-                    <Route path="/app/team" element={<Team />} />
-                    <Route path="/app/team/:id" element={<EmployeeDetail />} />
-                    <Route path="/app/alerts" element={<Alerts />} />
-                    <Route path="/app/access" element={<Access />} />
+                    <Route path="/app/dashboard" element={<RoleGuard allowed={["manager", "admin"]}><Dashboard /></RoleGuard>} />
+                    <Route path="/app/team" element={<RoleGuard allowed={["manager", "admin"]}><Team /></RoleGuard>} />
+                    <Route path="/app/team/:id" element={<RoleGuard allowed={["manager", "admin"]}><EmployeeDetail /></RoleGuard>} />
+                    <Route path="/app/alerts" element={<RoleGuard allowed={["manager", "admin"]}><Alerts /></RoleGuard>} />
+                    <Route path="/app/access" element={<RoleGuard allowed={["manager", "admin"]}><Access /></RoleGuard>} />
                     <Route path="/app/admin" element={<RoleGuard allowed={["admin"]}><Admin /></RoleGuard>} />
-                    <Route path="/app/reminders" element={<RemindersAudit />} />
+                    <Route path="/app/reminders" element={<RoleGuard allowed={["manager", "admin"]}><RemindersAudit /></RoleGuard>} />
                   </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
