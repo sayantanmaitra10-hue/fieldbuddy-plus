@@ -22,8 +22,10 @@ jobs:
       PROJECT_REF: ${{ inputs.project_ref }}
 
     steps:
-      - name: Check out repository
+      - name: Check out backend development branch
         uses: actions/checkout@v4
+        with:
+          ref: feat/backend-foundation
 
       - name: Set up Supabase CLI on GitHub runner
         uses: supabase/setup-cli@v3
