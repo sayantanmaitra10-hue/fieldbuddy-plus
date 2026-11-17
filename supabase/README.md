@@ -18,34 +18,16 @@ The publishable/anon key is expected to be present in browser builds. Never put 
 
 Use a **disposable staging Supabase project**. The project reference in `supabase/config.toml` is only a pointer; do not assume it is staging or safe to modify.
 
-From a terminal on a machine with Node.js installed, check out this branch and run:
+For this repository, the recommended path is GitHub Actions. You do not need Node.js, npm, or the Supabase CLI installed on your laptop. Follow **No local Node.js: run staging preflight in GitHub Actions** below. That workflow connects directly to Postgres by using a database URI, so it does not require `supabase login`, `supabase link`, or a Supabase Personal Access Token.
+
+For a developer workstation with the Supabase CLI already installed, CLI v3 can inspect migration history and preview migrations using the same direct database URI without `supabase link`:
 
 ```bash
-npx supabase --version
-npx supabase login
-npx supabase link --project-ref YOUR_CONFIRMED_STAGING_PROJECT_REF
-npx supabase migration list --remote
+supabase migration list --db-url "$SUPABASE_DB_URL"
+supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
 ```
 
-The Supabase CLI v3 uses explicit `--remote` flags for commands that inspect or change a hosted database. Review the remote migration history before proceeding.
-
-Then open the SQL Editor in that same staging project and run `supabase/validation/preflight_existing_schema.sql`. It is read-only and checks that the legacy `profiles` and `user_roles` tables and required columns exist, then lists current public tables and policies. Resolve any reported mismatch before applying migrations.
-
-After reviewing the preflight results and remote migration history, preview pending migrations:
-
-```bash
-npx supabase db push --dry-run --remote
-```
-
-Only when the target project is confirmed as staging and the dry-run list is understood, apply migrations with:
-
-```bash
-npx supabase db push --remote
-```
-
-The CLI asks for confirmation before hosted changes; do not bypass that confirmation with `--yes` until you have independently verified the target and migration list. After applying, run `supabase/validation/verify_backend.sql` in the SQL Editor.
-
-Review the existing migrations and database state before applying. The backend foundation migration adds organization-scoped tables and RLS; the membership RPC exposes only the signed-in user's active organization memberships.
+The `--dry-run` command previews pending migrations but applies nothing. Do not run a hosted `db push` until the target is confirmed as staging, the migration history is understood, and an appropriate backup exists. After migrations are applied through an explicitly reviewed deployment step, run `supabase/validation/verify_backend.sql` in the SQL Editor.
 
 ## First organization bootstrap
 
@@ -72,7 +54,7 @@ Authentication and active membership lookup are wired in the frontend. Operation
 
 ## Verify the staging backend
 
-After linking the CLI to the **confirmed staging project** and applying migrations, run the read-only verification script in the Supabase SQL editor:
+After applying migrations to the **confirmed staging project**, run the read-only verification script in the Supabase SQL editor:
 
 - `supabase/validation/verify_backend.sql`
 
