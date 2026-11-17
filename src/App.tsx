@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { RoleProvider } from "@/context/RoleContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RoleGuard } from "@/components/auth/RoleGuard";
 import { SyncProvider } from "@/context/SyncContext";
 import { TasksProvider } from "@/context/TasksContext";
 import { AdminProvider } from "@/context/AdminContext";
@@ -53,7 +54,7 @@ const App = () => (
                     <Route path="/app/team/:id" element={<EmployeeDetail />} />
                     <Route path="/app/alerts" element={<Alerts />} />
                     <Route path="/app/access" element={<Access />} />
-                    <Route path="/app/admin" element={<Admin />} />
+                    <Route path="/app/admin" element={<RoleGuard allowed={["admin"]}><Admin /></RoleGuard>} />
                     <Route path="/app/reminders" element={<RemindersAudit />} />
                   </Route>
                   <Route path="*" element={<NotFound />} />
