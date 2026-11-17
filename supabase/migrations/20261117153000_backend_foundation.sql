@@ -53,7 +53,7 @@ create table if not exists public.teams (
   unique (id, organization_id),
   unique (organization_id, name),
   foreign key (department_id, organization_id)
-    references public.departments(id, organization_id) on delete set null
+    references public.departments(id, organization_id) on delete restrict
 );
 
 create table if not exists public.locations (
@@ -82,7 +82,7 @@ create table if not exists public.geofences (
   updated_at timestamptz not null default now(),
   unique (id, organization_id),
   foreign key (location_id, organization_id)
-    references public.locations(id, organization_id) on delete set null
+    references public.locations(id, organization_id) on delete restrict
 );
 
 create table if not exists public.attendance_records (
@@ -128,9 +128,9 @@ create table if not exists public.attendance_events (
   created_at timestamptz not null default now(),
   unique (organization_id, employee_id, idempotency_key),
   foreign key (attendance_record_id, organization_id)
-    references public.attendance_records(id, organization_id) on delete set null,
+    references public.attendance_records(id, organization_id) on delete restrict,
   foreign key (geofence_id, organization_id)
-    references public.geofences(id, organization_id) on delete set null
+    references public.geofences(id, organization_id) on delete restrict
 );
 
 create index if not exists attendance_events_org_received_idx
