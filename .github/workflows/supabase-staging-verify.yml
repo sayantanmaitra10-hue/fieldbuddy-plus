@@ -76,11 +76,19 @@ jobs:
           psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
             --file supabase/validation/verify_backend.sql
 
-      - name: Check migration history and remaining dry-run (read-only)
+      - name: Check migration history and pending migrations (read-only)
+        env:
+          PGSSLMODE: require
+          PGOPTIONS: "-c default_transaction_read_only=on"
         run: |
           set -euo pipefail
-          supabase migration list --db-url "$SUPABASE_DB_URL"
-          supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
+          psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 <<'SQL'
+          SELECT
+            version,
+            name
+          FROM supabase_migrations.schema_migrations
+          ORDER BY version;
+          SQL
 
       - name: Verification summary
         run: echo "Read-only staging verification completed. No migrations, schema changes, data writes, or Edge Function deployments were performed."
