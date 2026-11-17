@@ -3,13 +3,13 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, loading, memberships } = useAuth();
+  const { user, loading, membershipsLoading, memberships } = useAuth();
   const location = useLocation();
 
-  if (loading) {
+  if (loading || (user && membershipsLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-sm text-muted-foreground">Restoring your secure session…</div>
+        <div className="text-sm text-muted-foreground">Restoring your secure workspace…</div>
       </div>
     );
   }
