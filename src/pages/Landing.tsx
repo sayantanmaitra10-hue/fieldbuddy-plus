@@ -3,14 +3,14 @@ import { ArrowRight, MapPin, ListChecks, ShieldCheck, Camera, MessageSquare, Bar
 import { Button } from "@/components/ui/button";
 
 const features = [
-  { icon: MapPin, title: "Geo-verified punch-in", text: "GPS + geo-fence validation. Manager alerts when employees check in outside assigned zones." },
+  { icon: MapPin, title: "Geo-verified punch-in", text: "Configurable GPS boundaries with server-side validation and exception review." },
   { icon: ListChecks, title: "Task execution flow", text: "Pending → In Progress → Completed. Clean status transitions with required proof." },
   { icon: Camera, title: "Proof of work", text: "Photo or video uploads, auto-tagged with timestamp and GPS coordinates." },
   { icon: MessageSquare, title: "Task-linked chat", text: "Conversations live inside the task. No more lost context across WhatsApp threads." },
   { icon: BarChart3, title: "Real-time dashboard", text: "Live check-in counts, task progress, and per-employee tracking for managers." },
   { icon: Bell, title: "Smart alerts", text: "No-check-in, task delay, inactivity, and out-of-zone exceptions surfaced instantly." },
-  { icon: WifiOff, title: "Offline-first", text: "Capture work without internet. Auto-syncs when the connection returns." },
-  { icon: ShieldCheck, title: "Role-based access", text: "Field users, managers, and admins each see exactly what they need — nothing more." },
+  { icon: WifiOff, title: "Offline-first", text: "Capture work without internet. Offline capture and confirmed server sync are being implemented." },
+  { icon: ShieldCheck, title: "Role-based access", text: "Organization membership and server-enforced role permissions separate employee, manager, and administrator access." },
 ];
 
 const Landing = () => (
@@ -20,14 +20,14 @@ const Landing = () => (
       <div className="max-w-6xl mx-auto px-5 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="size-8 rounded-lg gradient-primary grid place-items-center text-primary-foreground font-display font-bold">F</div>
-          <span className="font-display font-semibold tracking-tight">FieldOps</span>
+          <span className="font-display font-semibold tracking-tight">FieldBuddy Plus</span>
         </div>
         <nav className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
           <a href="#how" className="hover:text-foreground transition-colors">How it works</a>
           <a href="#roles" className="hover:text-foreground transition-colors">Roles</a>
         </nav>
-        <Link to="/app">
+        <Link to="/login">
           <Button className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
             Open app <ArrowRight className="size-4" />
           </Button>
@@ -53,12 +53,12 @@ const Landing = () => (
             Geo-verified attendance, structured tasks, photo proof, and live dashboards — one platform from punch-in to sign-off.
           </p>
           <div className="flex flex-wrap gap-3 mt-8">
-            <Link to="/app">
+            <Link to="/login">
               <Button size="lg" className="gradient-gold text-primary hover:opacity-95 shadow-gold gap-2 font-semibold">
                 Try the demo <ArrowRight className="size-4" />
               </Button>
             </Link>
-            <Link to="/app/dashboard">
+            <Link to="/login">
               <Button size="lg" variant="outline" className="border-primary-foreground/25 bg-transparent text-primary-foreground hover:bg-primary-foreground/10">
                 See manager view
               </Button>
@@ -67,9 +67,9 @@ const Landing = () => (
 
           <div className="grid grid-cols-3 gap-6 mt-14 max-w-xl">
             {[
-              { v: "98%", l: "On-time check-ins" },
-              { v: "3.2×", l: "Faster task closure" },
-              { v: "100%", l: "Proof-backed work" },
+              { v: "GPS", l: "Location-aware attendance" },
+              { v: "Tasks", l: "Structured execution" },
+              { v: "Audit", l: "Traceable work records" },
             ].map((s) => (
               <div key={s.l}>
                 <div className="font-display text-3xl lg:text-4xl font-bold text-accent">{s.v}</div>
@@ -135,7 +135,7 @@ const Landing = () => (
           <p className="text-muted-foreground leading-relaxed mb-6">
             Field users get a focused mobile flow. Managers get a real-time command center. Admins control the whole system.
           </p>
-          <Link to="/app/access">
+          <Link to="/login">
             <Button variant="outline" className="gap-1.5">View permission matrix <ArrowRight className="size-4" /></Button>
           </Link>
         </div>
@@ -163,8 +163,8 @@ const Landing = () => (
         <div className="absolute inset-0 grid-dots opacity-30" />
         <div className="relative">
           <h2 className="font-display text-3xl lg:text-5xl font-semibold tracking-tight mb-4 text-balance">Ready to see it in action?</h2>
-          <p className="text-primary-foreground/75 max-w-xl mx-auto mb-7">Explore the full prototype — switch between Field User and Manager views in the app.</p>
-          <Link to="/app">
+          <p className="text-primary-foreground/75 max-w-xl mx-auto mb-7">Sign in with your organization account. Access is granted according to your organization membership and assigned role.</p>
+          <Link to="/login">
             <Button size="lg" className="gradient-gold text-primary hover:opacity-95 shadow-gold gap-2 font-semibold">
               Open the app <ArrowRight className="size-4" />
             </Button>
@@ -174,7 +174,7 @@ const Landing = () => (
     </section>
 
     <footer className="border-t border-border py-8 text-center text-xs text-muted-foreground">
-      © FieldOps · Workforce execution platform · Prototype
+      © FieldBuddy Plus · Workforce execution platform
     </footer>
   </div>
 );
