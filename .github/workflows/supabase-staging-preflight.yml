@@ -44,6 +44,10 @@ jobs:
             echo "::error::Add SUPABASE_DB_PASSWORD under repository Settings > Secrets and variables > Actions."
             exit 1
           fi
+          if [[ ! "$SUPABASE_ACCESS_TOKEN" =~ ^sbp_ ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN is not a Supabase Personal Access Token. Replace it with a token beginning sbp_ from https://supabase.com/dashboard/account/tokens. Do not use an anon/publishable key, service-role key, JWT, or database password."
+            exit 1
+          fi
           if [[ ! "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
             echo "::error::Project reference must be exactly 20 lowercase letters or numbers."
             exit 1
