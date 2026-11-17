@@ -79,3 +79,17 @@ After linking the CLI to the **confirmed staging project** and applying migratio
 The script checks that all backend tables exist with RLS enabled, required RPCs and the email-confirmation trigger exist, browser roles cannot write organization memberships or invoke privileged write RPCs, and the service role can invoke the attendance write RPC. It raises an exception when a check fails and makes no schema or data changes.
 
 Do not use the project reference in `supabase/config.toml` for a database push until you have confirmed in the Supabase dashboard that it is the intended **staging** project. Never run the initial migration set against production without a reviewed backup and migration plan.
+
+
+## No local Node.js: run staging preflight in GitHub Actions
+
+You do not need Node.js, npm, or the Supabase CLI installed on your laptop. A manual read-only workflow is available in the repository's default branch at `.github/workflows/supabase-staging-preflight.yml`. It checks out `feat/backend-foundation` and runs the Supabase CLI on a GitHub-hosted runner.
+
+Before running it, add these repository Actions secrets under **Settings → Secrets and variables → Actions**:
+
+- `SUPABASE_ACCESS_TOKEN`: a Supabase personal access token.
+- `SUPABASE_DB_PASSWORD`: the database password for the staging project only.
+
+Then open **Actions → Supabase staging preflight → Run workflow**, enter the staging project's 20-character project reference, and run it. The workflow links the project inside its temporary runner, lists migration history, runs `db push --dry-run`, and reads the required legacy columns and existing public RLS policies. It does not apply migrations, alter database objects, or deploy Edge Functions.
+
+Review the complete run log before requesting a separate deployment workflow. Do not create these secrets using a production database password or a production Supabase project.
