@@ -47,3 +47,14 @@ For production, replace manual bootstrap with a reviewed server-side invitation/
 ## Current boundary
 
 Authentication and active membership lookup are wired in the frontend. Operational writes for attendance and tasks remain intentionally unavailable until trusted Edge Functions validate and record those transitions. Do not treat frontend state or client-supplied GPS/device timestamps as authoritative.
+
+
+## Verify the staging backend
+
+After linking the CLI to the **confirmed staging project** and applying migrations, run the read-only verification script in the Supabase SQL editor:
+
+- `supabase/validation/verify_backend.sql`
+
+The script checks that all backend tables exist with RLS enabled, required RPCs and the email-confirmation trigger exist, browser roles cannot write organization memberships or invoke privileged write RPCs, and the service role can invoke the attendance write RPC. It raises an exception when a check fails and makes no schema or data changes.
+
+Do not use the project reference in `supabase/config.toml` for a database push until you have confirmed in the Supabase dashboard that it is the intended **staging** project. Never run the initial migration set against production without a reviewed backup and migration plan.
