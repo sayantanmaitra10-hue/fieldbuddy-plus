@@ -83,13 +83,16 @@ Do not use the project reference in `supabase/config.toml` for a database push u
 
 ## No local Node.js: run staging preflight in GitHub Actions
 
-You do not need Node.js, npm, or the Supabase CLI installed on your laptop. A manual read-only workflow is available in the repository's default branch at `.github/workflows/supabase-staging-preflight.yml`. It checks out `feat/backend-foundation` and runs the Supabase CLI on a GitHub-hosted runner.
+You do not need Node.js, npm, the Supabase CLI, or a Supabase Personal Access Token on your laptop. A manual read-only workflow is available in the repository's default branch at `.github/workflows/supabase-staging-preflight.yml`. It runs the Supabase CLI on a GitHub-hosted runner and connects directly to Postgres using a database URI. It does **not** call `supabase link` or the Supabase Management API.
 
-Before running it, add these repository Actions secrets under **Settings → Secrets and variables → Actions**:
+### Set the database URI secret
 
-- `SUPABASE_ACCESS_TOKEN`: a Supabase personal access token.
-- `SUPABASE_DB_PASSWORD`: the database password for the staging project only.
+In the Supabase Dashboard, open the confirmed staging project and click **Connect** at the top of the page. Select **Session pooler** and copy its PostgreSQL URI (port 5432). Replace `[YOUR-PASSWORD]` with the staging database password. Percent-encode reserved characters in the password (for example `&`, `#`, `?`, or spaces).
 
-Then open **Actions → Supabase staging preflight → Run workflow**, enter the staging project's 20-character project reference, and run it. The workflow links the project inside its temporary runner, lists migration history, runs `db push --dry-run`, and reads the required legacy columns and existing public RLS policies. It does not apply migrations, alter database objects, or deploy Edge Functions.
+Add the complete URI as the GitHub repository Actions secret named `SUPABASE_DB_URL` under **Settings → Secrets and variables → Actions**. Treat this URI as a password; never put it in chat, source files, or workflow logs.
 
-Review the complete run log before requesting a separate deployment workflow. Do not create these secrets using a production database password or a production Supabase project.
+### Run the preflight
+
+Open **Actions → Supabase staging preflight → Run workflow**, enter the staging project's 20-character project reference, and run it. The workflow verifies that the URI includes that project reference, lists migration history, runs `db push --dry-run`, and reads the required legacy columns and existing public RLS policies.
+
+The workflow is entirely read-only: it does not apply migrations, change schema/data, or deploy Edge Functions. The earlier `SUPABASE_ACCESS_TOKEN` and `SUPABASE_DB_PASSWORD` secrets are not used by this direct-connection workflow and may be removed after the new one works.
