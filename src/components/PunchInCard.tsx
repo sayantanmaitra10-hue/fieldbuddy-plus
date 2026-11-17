@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { MapPin, Loader2, CheckCircle2, TriangleAlert, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { submitAttendanceEvent } from "@/lib/attendance-service";
+import { getTodayAttendance, submitAttendanceEvent } from "@/lib/attendance-service";
 
 type PunchState = "idle" | "locating" | "submitting" | "checked" | "completed";
 
@@ -12,10 +12,45 @@ export const PunchInCard = () => {
   const [location, setLocation] = useState("Location permission required");
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
   const [time, setTime] = useState("");
+  const [statusReady, setStatusReady] = useState(false);
   const { toast } = useToast();
   const { activeMembership } = useAuth();
 
+  useEffect(() => {
+    let active = true;
+    const organizationId = activeMembership?.organization_id;
+    if (!organizationId) {
+      setStatusReady(false);
+      return () => { active = false; };
+    }
+
+    setStatusReady(false);
+    getTodayAttendance(organizationId)
+      .then((record) => {
+        if (!active) return;
+        if (record?.last_check_out_at) {
+          setState("completed");
+          setTime(new Date(record.last_check_out_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+        } else if (record?.first_check_in_at) {
+          setState("checked");
+          setTime(new Date(record.first_check_in_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }));
+        } else {
+          setState("idle");
+          setTime("");
+        }
+        setStatusReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setLocationMessage(error instanceof Error ? error.message : "Unable to load today's attendance.");
+        setStatusReady(false);
+      });
+
+    return () => { active = false; };
+  }, [activeMembership?.organization_id]);
+
   const handlePunch = () => {
+    if (!statusReady) return;
     if (state !== "idle" && state !== "checked") return;
     const wasCheckedIn = state === "checked";
     const eventType = wasCheckedIn ? "check_out" : "check_in";
@@ -129,7 +164,7 @@ export const PunchInCard = () => {
         <motion.button
           whileTap={{ scale: 0.96 }}
           onClick={handlePunch}
-          disabled={state !== "idle" && state !== "checked"}
+          disabled={!statusReady || (state !== "idle" && state !== "checked")}
           className="relative size-32 shrink-0 self-center rounded-full gradient-gold font-display text-base font-bold text-primary shadow-gold disabled:cursor-default disabled:opacity-90 lg:size-36"
         >
           <span className={state === "idle" ? "absolute inset-0 animate-pulse-ring rounded-full" : ""} />
@@ -137,7 +172,7 @@ export const PunchInCard = () => {
             {(state === "locating" || state === "submitting") && <Loader2 className="size-7 animate-spin" />}
             {state === "idle" && <MapPin className="size-7" />}
             {(state === "checked" || state === "completed") && <CheckCircle2 className="size-7" />}
-            {state === "idle" && "Start Day"}
+            {state === "idle" && (statusReady ? "Start Day" : "Loading…")}
             {state === "locating" && "Locating…"}
             {state === "submitting" && "Validating…"}
             {state === "checked" && "End Day"}
