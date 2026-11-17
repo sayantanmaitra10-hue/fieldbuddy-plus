@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 import { employees as seedEmployees, type Employee } from "@/lib/mock-data";
+import { isDemoMode } from "@/lib/runtime-config";
 
 export type MemberRole = "field" | "manager" | "admin";
 
@@ -45,13 +46,14 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join("") || "??";
 
-const seedMembers: TeamMember[] = seedEmployees.map((e, i) => ({
+const seedMembers: TeamMember[] = isDemoMode ? seedEmployees.map((e, i) => ({
   ...e,
   appRole: i === 0 ? "admin" : i === 1 ? "manager" : "field",
-}));
+})) : [];
 
 export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const [members, setMembers] = useState<TeamMember[]>(() => {
+    if (!isDemoMode) return [];
     try {
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_MEMBERS) : null;
       if (raw) return JSON.parse(raw);
@@ -60,6 +62,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(() => {
+    if (!isDemoMode) return [];
     try {
       const raw = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_AUDIT) : null;
       if (raw) return JSON.parse(raw);
@@ -68,18 +71,22 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const [impersonatedId, setImpersonatedId] = useState<string | null>(() => {
+    if (!isDemoMode) return null;
     try {
       return typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_IMP) : null;
     } catch { return null; }
   });
 
   useEffect(() => {
+    if (!isDemoMode) return;
     try { window.localStorage.setItem(STORAGE_MEMBERS, JSON.stringify(members)); } catch { /* ignore */ }
   }, [members]);
   useEffect(() => {
+    if (!isDemoMode) return;
     try { window.localStorage.setItem(STORAGE_AUDIT, JSON.stringify(auditLog.slice(-200))); } catch { /* ignore */ }
   }, [auditLog]);
   useEffect(() => {
+    if (!isDemoMode) return;
     try {
       if (impersonatedId) window.localStorage.setItem(STORAGE_IMP, impersonatedId);
       else window.localStorage.removeItem(STORAGE_IMP);
