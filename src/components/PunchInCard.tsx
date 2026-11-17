@@ -46,6 +46,7 @@ export const PunchInCard = () => {
   const [time, setTime] = useState("");
   const [statusReady, setStatusReady] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [retryToken, setRetryToken] = useState(0);
   const syncingRef = useRef(false);
   const { toast } = useToast();
   const { activeMembership } = useAuth();
@@ -122,7 +123,7 @@ export const PunchInCard = () => {
       active = false;
       window.removeEventListener("online", handleOnline);
     };
-  }, [organizationId]);
+  }, [organizationId, retryToken]);
 
   const handlePunch = () => {
     if (!statusReady || !organizationId) return;
@@ -257,6 +258,11 @@ export const PunchInCard = () => {
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-warning/30 bg-warning/15 px-3 py-1.5 text-xs font-medium text-warning-foreground">
               <CloudUpload className="size-3.5" />
               {pendingCount} pending · Not yet counted as attendance
+              {typeof navigator !== "undefined" && navigator.onLine && (
+                <button type="button" onClick={() => setRetryToken((value) => value + 1)} className="ml-2 underline underline-offset-2">
+                  Retry sync
+                </button>
+              )}
             </div>
           )}
         </div>
