@@ -17,7 +17,8 @@ export const PunchInCard = () => {
 
   const handlePunch = () => {
     if (state !== "idle" && state !== "checked") return;
-    const eventType = state === "checked" ? "check_out" : "check_in";
+    const wasCheckedIn = state === "checked";
+    const eventType = wasCheckedIn ? "check_out" : "check_in";
     if (!activeMembership) {
       setLocationMessage("Your account is not connected to an active organization.");
       return;
@@ -56,7 +57,7 @@ export const PunchInCard = () => {
                 ? "You are outside every active work geofence configured for your organization. The event has been recorded for review."
                 : "The server could not validate this attendance event.";
             setLocationMessage(message);
-            setState("idle");
+            setState(wasCheckedIn ? "checked" : "idle");
             toast({ title: "Attendance not validated", description: message, variant: "destructive" });
             return;
           }
@@ -76,8 +77,8 @@ export const PunchInCard = () => {
         } catch (error) {
           const message = error instanceof Error ? error.message : "Attendance could not be submitted.";
           setLocationMessage(message);
-          setState("idle");
-          toast({ title: "Punch-in failed", description: message, variant: "destructive" });
+          setState(wasCheckedIn ? "checked" : "idle");
+          toast({ title: eventType === "check_in" ? "Punch-in failed" : "Punch-out failed", description: message, variant: "destructive" });
         }
       },
       (error) => {
@@ -87,7 +88,7 @@ export const PunchInCard = () => {
             ? "Your current location could not be determined. Move to an open area and try again."
             : "Location check timed out. Try again where GPS reception is stronger.";
         setLocationMessage(message);
-        setState("idle");
+        setState(wasCheckedIn ? "checked" : "idle");
         toast({ title: "Location check failed", description: message, variant: "destructive" });
       },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
