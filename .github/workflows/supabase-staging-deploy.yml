@@ -114,7 +114,7 @@ jobs:
           fi
 
       - name: Apply reviewed migrations to the confirmed staging database
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: supabase db push --yes --db-url "$SUPABASE_DB_URL"
 
       - name: Verify backend schema, RLS and privileged grants
         shell: bash
