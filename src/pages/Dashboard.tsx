@@ -1,142 +1,128 @@
-import { Topbar } from "@/components/layout/Topbar";
-import { employees, tasks, alerts, activitySeries } from "@/lib/mock-data";
-import { isDemoMode } from "@/lib/runtime-config";
-import { StatusPill } from "@/components/StatusPill";
-import { Users, CheckCircle2, ListChecks, AlertTriangle, MapPin, ArrowUpRight } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-
-const Stat = ({ icon: Icon, label, value, hint, accent }: any) => (
-  <div className="bg-card border border-border rounded-xl p-5 shadow-card">
-    <div className="flex items-center justify-between mb-3">
-      <Icon className={`size-5 ${accent ?? "text-primary"}`} />
-      <ArrowUpRight className="size-3.5 text-muted-foreground" />
-    </div>
-    <div className="font-display text-3xl font-bold leading-none">{value}</div>
-    <div className="text-sm text-muted-foreground mt-1">{label}</div>
-    {hint && <div className="text-[11px] text-success mt-2">{hint}</div>}
-  </div>
-);
+import { Topbar } from "@/components/layout/Topbar";
+import { useAuth } from "@/context/AuthContext";
+import { getOrganizationDashboard, type OrganizationDashboardSummary } from "@/lib/dashboard-service";
+import { useToast } from "@/hooks/use-toast";
+import { Users, CheckCircle2, ListChecks, AlertTriangle, RefreshCw, Loader2, Clock3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 const Dashboard = () => {
-  const dashboardEmployees = isDemoMode ? employees : [];
-  const dashboardTasks = isDemoMode ? tasks : [];
-  const dashboardAlerts = isDemoMode ? alerts : [];
-  const dashboardActivity = isDemoMode ? activitySeries : [];
-  const checkedIn = dashboardEmployees.filter((e) => e.checkedIn).length;
-  const inprog = dashboardTasks.filter((t) => t.status === "in_progress").length;
-  const done = dashboardTasks.filter((t) => t.status === "completed").length;
+  const { activeMembership } = useAuth();
+  const { toast } = useToast();
+  const [summary, setSummary] = useState<OrganizationDashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (quiet = false) => {
+    if (!activeMembership?.organization_id) {
+      setSummary(null);
+      setLoading(false);
+      return;
+    }
+    if (quiet) setRefreshing(true);
+    else setLoading(true);
+    try {
+      setSummary(await getOrganizationDashboard(activeMembership.organization_id));
+    } catch (error) {
+      toast({
+        title: "Unable to load dashboard",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [activeMembership?.organization_id, toast]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const stats = summary ? [
+    { icon: Users, label: "Active members", value: summary.active_members },
+    { icon: CheckCircle2, label: "Checked in today", value: summary.checked_in_today },
+    { icon: ListChecks, label: "Open tasks", value: summary.open_tasks },
+    { icon: AlertTriangle, label: "Awaiting review", value: summary.awaiting_review },
+  ] : [];
 
   return (
     <>
-      <Topbar title="Operations Dashboard" subtitle="Organization workforce overview" />
-      <div className="p-4 lg:p-8 space-y-6 max-w-7xl">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-          <Stat icon={Users} label="Checked in today" value={`${checkedIn}/${dashboardEmployees.length}`} />
-          <Stat icon={ListChecks} label="Tasks in progress" value={inprog} />
-          <Stat icon={CheckCircle2} label="Tasks completed" value={done} accent="text-success" hint="On track" />
-          <Stat icon={AlertTriangle} label="Open alerts" value={dashboardAlerts.length} accent="text-destructive" />
+      <Topbar title="Operations Dashboard" subtitle={activeMembership?.organization_name ?? "Organization workforce overview"} />
+      <div className="mx-auto max-w-7xl space-y-6 p-4 lg:p-8">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            {summary?.work_date ? `Business date · ${new Date(summary.work_date + "T00:00:00").toLocaleDateString("en-IN")}` : "Live organization summary"}
+          </p>
+          <Button size="sm" variant="outline" onClick={() => void load(true)} disabled={refreshing}>
+            <RefreshCw className={`mr-2 size-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </Button>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-card border border-border rounded-xl p-5 lg:p-6 shadow-card">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-display font-semibold">Activity timeline</h2>
-                <p className="text-xs text-muted-foreground">Check-ins & task completions today</p>
-              </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-primary-glow" /> Check-ins</span>
-                <span className="flex items-center gap-1.5"><span className="size-2 rounded-full bg-accent" /> Completed</span>
-              </div>
-            </div>
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={dashboardActivity}>
-                  <defs>
-                    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--primary-glow))" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="hsl(var(--primary-glow))" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }} />
-                  <Area type="monotone" dataKey="checkins" stroke="hsl(var(--primary-glow))" strokeWidth={2} fill="url(#g1)" />
-                  <Area type="monotone" dataKey="completions" stroke="hsl(var(--accent))" strokeWidth={2} fill="url(#g2)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="bg-card border border-border rounded-xl p-5 shadow-card">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display font-semibold">Live alerts</h2>
-              <Link to="/app/alerts" className="text-xs text-primary font-medium">View all</Link>
-            </div>
-            <div className="space-y-3">
-              {dashboardAlerts.slice(0, 4).map((a) => (
-                <div key={a.id} className="flex gap-3 p-3 rounded-lg bg-muted/40 border border-border">
-                  <div className={`size-1.5 rounded-full mt-1.5 shrink-0 ${a.severity === "high" ? "bg-destructive" : a.severity === "medium" ? "bg-warning" : "bg-info"}`} />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{a.employee}</div>
-                    <div className="text-xs text-muted-foreground line-clamp-2">{a.message}</div>
-                    <div className="text-[10px] text-muted-foreground mt-1">{a.time}</div>
+        {loading ? (
+          <div className="flex justify-center py-16 text-sm text-muted-foreground"><Loader2 className="mr-2 size-4 animate-spin" /> Loading organization metrics…</div>
+        ) : summary ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+              {stats.map((stat) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={stat.label} className="rounded-xl border border-border bg-card p-5 shadow-card">
+                    <Icon className="mb-3 size-5 text-primary" />
+                    <div className="font-display text-3xl font-bold leading-none">{stat.value}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{stat.label}</div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
-        </div>
 
-        <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
-          <div className="px-5 lg:px-6 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="font-display font-semibold">Field team status</h2>
-            <Link to="/app/team" className="text-xs text-primary font-medium">All employees</Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground uppercase tracking-wider">
-                <tr>
-                  <th className="text-left font-medium px-5 py-3">Employee</th>
-                  <th className="text-left font-medium px-5 py-3">Status</th>
-                  <th className="text-left font-medium px-5 py-3 hidden md:table-cell">Zone</th>
-                  <th className="text-left font-medium px-5 py-3 hidden lg:table-cell">Location</th>
-                  <th className="text-left font-medium px-5 py-3">Tasks</th>
-                  <th className="text-left font-medium px-5 py-3 hidden sm:table-cell">Last activity</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {dashboardEmployees.map((e) => (
-                  <tr key={e.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-5 py-3">
-                      <Link to={`/app/team/${e.id}`} className="flex items-center gap-3">
-                        <div className="size-8 rounded-full gradient-primary text-primary-foreground grid place-items-center text-xs font-semibold">{e.avatar}</div>
-                        <div>
-                          <div className="font-medium">{e.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{e.role}</div>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <section className="rounded-xl border border-border bg-card p-5 shadow-card">
+                <h2 className="font-display font-semibold">Task health</h2>
+                <div className="mt-4 space-y-4">
+                  <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">In progress</span><strong>{summary.tasks_in_progress}</strong></div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${summary.open_tasks ? Math.min(100, summary.tasks_in_progress / summary.open_tasks * 100) : 0}%` }} /></div>
+                  <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Approved</span><strong>{summary.tasks_approved}</strong></div>
+                  <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Awaiting review</span><strong>{summary.awaiting_review}</strong></div>
+                </div>
+                <Link to="/app/tasks" className="mt-5 inline-block text-xs font-medium text-primary hover:underline">Open task board →</Link>
+              </section>
+
+              <section className="rounded-xl border border-border bg-card p-5 shadow-card lg:col-span-2">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <h2 className="font-display font-semibold">Recently created tasks</h2>
+                  <Link to="/app/tasks" className="text-xs font-medium text-primary hover:underline">View all</Link>
+                </div>
+                {summary.recent_tasks.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">No tasks have been created for this organization.</div>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {summary.recent_tasks.map((task) => (
+                      <div key={task.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">{task.title}</div>
+                          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Users className="size-3" /> {task.assignee_name}</div>
                         </div>
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3">
-                      {e.checkedIn
-                        ? <span className="inline-flex items-center gap-1.5 text-xs text-success font-medium"><span className="size-1.5 rounded-full bg-success" /> In · {e.checkInTime}</span>
-                        : <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><span className="size-1.5 rounded-full bg-muted-foreground" /> Off</span>}
-                    </td>
-                    <td className="px-5 py-3 hidden md:table-cell">{e.zone !== "n/a" && <StatusPill status={e.zone} />}</td>
-                    <td className="px-5 py-3 hidden lg:table-cell text-muted-foreground"><span className="inline-flex items-center gap-1"><MapPin className="size-3" /> {e.location}</span></td>
-                    <td className="px-5 py-3"><span className="font-medium">{e.tasksCompleted}</span><span className="text-muted-foreground">/{e.tasksAssigned}</span></td>
-                    <td className="px-5 py-3 hidden sm:table-cell text-muted-foreground text-xs">{e.lastActivity}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{task.priority}</Badge>
+                          <Badge variant="secondary">{task.status.replace("_", " ")}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Link to="/app/team" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm hover:bg-muted"><Users className="size-4" /> Team directory</Link>
+              <Link to="/app/tasks" className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm hover:bg-muted"><Clock3 className="size-4" /> Task management</Link>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
+            Organization metrics are not available. Check your membership or refresh the dashboard.
           </div>
-        </div>
+        )}
       </div>
     </>
   );
