@@ -1,0 +1,86 @@
+name: Verify Supabase staging backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: "Confirmed staging project reference"
+        required: true
+        type: string
+      confirmation:
+        description: "Type VERIFY_STAGING to run read-only verification"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify-staging:
+    name: Read-only backend verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PROJECT_REF: ${{ inputs.project_ref }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Check out backend development branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/backend-foundation
+
+      - name: Validate target and read-only confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_DB_URL:-}" ]]; then
+            echo "::error::SUPABASE_DB_URL secret is missing."
+            exit 1
+          fi
+          if [[ ! "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
+            echo "::error::Project reference must be exactly 20 lowercase letters or numbers."
+            exit 1
+          fi
+          if [[ "$CONFIRMATION" != "VERIFY_STAGING" ]]; then
+            echo "::error::Type VERIFY_STAGING in the confirmation field."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != postgres://* && "$SUPABASE_DB_URL" != postgresql://* ]]; then
+            echo "::error::SUPABASE_DB_URL must be a PostgreSQL connection URI."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != *"$PROJECT_REF"* ]]; then
+            echo "::error::The database URI does not contain the supplied project reference."
+            exit 1
+          fi
+          CONFIG_PROJECT_REF="$(sed -n 's/^project_id = "\(.*\)"/\1/p' supabase/config.toml)"
+          if [[ "$CONFIG_PROJECT_REF" != "$PROJECT_REF" ]]; then
+            echo "::error::supabase/config.toml does not match the supplied project reference."
+            exit 1
+          fi
+          echo "Target validated. Database URL was not printed."
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Verify backend schema, RLS, RPCs and security grants (read-only)
+        env:
+          PGSSLMODE: require
+          PGOPTIONS: "-c default_transaction_read_only=on"
+        run: |
+          set -euo pipefail
+          psql "$SUPABASE_DB_URL" --no-psqlrc --set ON_ERROR_STOP=1 \
+            --file supabase/validation/verify_backend.sql
+
+      - name: Check migration history and remaining dry-run (read-only)
+        run: |
+          set -euo pipefail
+          supabase migration list --db-url "$SUPABASE_DB_URL"
+          supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
+
+      - name: Verification summary
+        run: echo "Read-only staging verification completed. No migrations, schema changes, data writes, or Edge Function deployments were performed."
