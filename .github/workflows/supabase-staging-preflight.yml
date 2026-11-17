@@ -17,8 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       PROJECT_REF: ${{ inputs.project_ref }}
 
     steps:
@@ -32,37 +31,34 @@ jobs:
         with:
           version: latest
 
-      - name: Validate credentials and staging project reference
+      - name: Validate database connection string and target
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
-            echo "::error::Add SUPABASE_ACCESS_TOKEN under repository Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-          if [[ -z "${SUPABASE_DB_PASSWORD:-}" ]]; then
-            echo "::error::Add SUPABASE_DB_PASSWORD under repository Settings > Secrets and variables > Actions."
-            exit 1
-          fi
-          if [[ ! "$SUPABASE_ACCESS_TOKEN" =~ ^sbp_ ]]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN is not a Supabase Personal Access Token. Replace it with a token beginning sbp_ from https://supabase.com/dashboard/account/tokens. Do not use an anon/publishable key, service-role key, JWT, or database password."
+          if [[ -z "${SUPABASE_DB_URL:-}" ]]; then
+            echo "::error::Add SUPABASE_DB_URL under repository Settings > Secrets and variables > Actions."
             exit 1
           fi
           if [[ ! "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]]; then
             echo "::error::Project reference must be exactly 20 lowercase letters or numbers."
             exit 1
           fi
-          echo "Preflight target project ref: $PROJECT_REF"
-          echo "No database writes or deployments will be performed by this workflow."
+          if [[ "$SUPABASE_DB_URL" != postgres://* && "$SUPABASE_DB_URL" != postgresql://* ]]; then
+            echo "::error::SUPABASE_DB_URL must be the PostgreSQL URI copied from the Supabase Dashboard Connect dialog."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" == *"[YOUR-PASSWORD]"* || "$SUPABASE_DB_URL" != *"$PROJECT_REF"* ]]; then
+            echo "::error::The connection string still has a password placeholder or does not contain the selected project reference. Check the Session pooler username (postgres.PROJECT_REF) and replace the password."
+            exit 1
+          fi
+          echo "Connection string format and project reference checks passed."
+          echo "The next steps connect directly to Postgres. They do not call supabase link or the Supabase Management API."
 
-      - name: Link the selected project in this temporary runner
-        run: supabase link --project-ref "$PROJECT_REF"
-
-      - name: Compare local and remote migration history
-        run: supabase migration list --remote
+      - name: Compare local and remote migration history (read-only)
+        run: supabase migration list --db-url "$SUPABASE_DB_URL"
 
       - name: Preview migrations without applying them
-        run: supabase db push --dry-run --remote
+        run: supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
 
       - name: Check required legacy application columns (read-only)
         shell: bash
@@ -92,7 +88,7 @@ jobs:
           ORDER BY required_columns.table_name, required_columns.column_name;
           SQL
           )
-          supabase db query "$SQL" --read-only --remote --output table
+          supabase db query "$SQL" --db-url "$SUPABASE_DB_URL" --read-only --output table
 
       - name: List current public RLS policies (read-only)
         shell: bash
@@ -110,7 +106,7 @@ jobs:
           ORDER BY tablename, policyname;
           SQL
           )
-          supabase db query "$SQL" --read-only --remote --output table
+          supabase db query "$SQL" --db-url "$SUPABASE_DB_URL" --read-only --output table
 
       - name: Confirm no deployment was performed
-        run: echo "Preflight complete. Review this run's migration preview, required-column results, and RLS policy listing before any separate deployment approval."
+        run: echo "Preflight complete. Migration history, dry-run preview, required columns, and existing RLS policies were inspected. No changes were applied."
