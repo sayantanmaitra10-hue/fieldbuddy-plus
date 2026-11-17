@@ -120,8 +120,102 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SQL="$(cat supabase/validation/verify_backend.sql)"
-          supabase db query "$SQL" --db-url "$SUPABASE_DB_URL" --read-only --output table
+          # Use the PostgreSQL connection URI directly for verification.
+          # Supabase CLI db query does not accept --db-url as a target flag.
+          bun add --no-save postgres
+          cat > /tmp/verify_backend.ts <<'TS'
+          import postgres from "postgres";
+          const url = process.env.SUPABASE_DB_URL;
+          if (!url) throw new Error("SUPABASE_DB_URL is missing");
+          const sql = postgres(url, { max: 1, connect_timeout: 15 });
+          try {
+            const checks = await sql.unsafe(`
+              SELECT
+                required.table_name,
+                to_regclass(format('public.%I', required.table_name)) IS NOT NULL AS present,
+                coalesce(c.relrowsecurity, false) AS rls_enabled
+              FROM (VALUES
+                ('organizations'), ('organization_members'), ('departments'),
+                ('teams'), ('locations'), ('geofences'), ('attendance_records'),
+                ('attendance_events'), ('tasks'), ('task_comments'),
+                ('task_status_history'), ('audit_logs'), ('profiles'), ('user_roles')
+              ) AS required(table_name)
+              LEFT JOIN pg_class c
+                ON c.oid = to_regclass(format('public.%I', required.table_name))
+              ORDER BY required.table_name
+            `);
+            console.log("TABLE AND RLS CHECKS");
+            console.table(checks);
+            const missing = checks.filter((row: any) => !row.present);
+            const noRls = checks.filter((row: any) => row.present && !row.rls_enabled && row.table_name !== "profiles" && row.table_name !== "user_roles");
+            if (missing.length || noRls.length) {
+              throw new Error(`Missing tables: ${missing.map((x: any) => x.table_name).join(", ") || "none"}; tables without RLS: ${noRls.map((x: any) => x.table_name).join(", ") || "none"}`);
+            }
+
+            const funcs = await sql.unsafe(`
+              SELECT name, to_regprocedure(signature) IS NOT NULL AS present
+              FROM (VALUES
+                ('get_my_organization_memberships', 'public.get_my_organization_memberships()'),
+                ('get_organization_directory', 'public.get_organization_directory(uuid)'),
+                ('get_my_attendance_today', 'public.get_my_attendance_today(uuid)'),
+                ('get_my_tasks', 'public.get_my_tasks(uuid)'),
+                ('get_organization_assignees', 'public.get_organization_assignees(uuid)'),
+                ('get_organization_dashboard', 'public.get_organization_dashboard(uuid)'),
+                ('record_attendance_event', 'public.record_attendance_event(uuid,uuid,text,timestamptz,double precision,double precision,double precision,uuid,text,text,text,jsonb,date)'),
+                ('create_task_with_audit', 'public.create_task_with_audit(uuid,text,text,uuid,uuid,timestamptz,text)'),
+                ('apply_task_transition', 'public.apply_task_transition(uuid,uuid,uuid,text,text,text)')
+              ) AS required(name, signature)
+              ORDER BY name
+            `);
+            console.log("RPC CHECKS");
+            console.table(funcs);
+            const missingFns = funcs.filter((row: any) => !row.present);
+            if (missingFns.length) throw new Error(`Missing RPCs: ${missingFns.map((x: any) => x.name).join(", ")}`);
+
+            const hardening = await sql.unsafe(`
+              SELECT
+                NOT EXISTS (
+                  SELECT 1 FROM information_schema.role_table_grants
+                  WHERE table_schema = 'public' AND table_name = 'organization_members'
+                    AND grantee IN ('anon','authenticated')
+                    AND privilege_type IN ('INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER')
+                ) AS membership_browser_writes_revoked,
+                NOT EXISTS (
+                  SELECT 1 FROM pg_policies
+                  WHERE schemaname = 'public' AND tablename = 'organization_members'
+                    AND cmd IN ('ALL','INSERT','UPDATE','DELETE')
+                ) AS membership_browser_write_policies_absent,
+                NOT has_function_privilege(
+                  'authenticated',
+                  'public.record_attendance_event(uuid,uuid,text,timestamptz,double precision,double precision,double precision,uuid,text,text,text,jsonb,date)',
+                  'EXECUTE'
+                ) AS attendance_rpc_not_browser_executable,
+                has_function_privilege(
+                  'service_role',
+                  'public.record_attendance_event(uuid,uuid,text,timestamptz,double precision,double precision,double precision,uuid,text,text,text,jsonb,date)',
+                  'EXECUTE'
+                ) AS attendance_rpc_service_role_executable,
+                NOT has_function_privilege('authenticated', 'public.create_task_with_audit(uuid,text,text,uuid,uuid,timestamptz,text)', 'EXECUTE')
+                  AND NOT has_function_privilege('authenticated', 'public.apply_task_transition(uuid,uuid,uuid,text,text,text)', 'EXECUTE')
+                  AS task_write_rpcs_not_browser_executable,
+                EXISTS (
+                  SELECT 1 FROM pg_trigger t
+                  WHERE t.tgrelid = 'auth.users'::regclass
+                    AND t.tgname = 'on_auth_user_confirmed_activate_memberships'
+                    AND NOT t.tgisinternal
+                ) AS membership_activation_trigger_present
+            `);
+            console.log("SECURITY CHECKS");
+            console.table(hardening);
+            const security = hardening[0] as Record<string, boolean>;
+            const failed = Object.entries(security).filter(([, pass]) => pass !== true);
+            if (failed.length) throw new Error(`Security checks failed: ${failed.map(([key]) => key).join(", ")}`);
+            console.log("PASS: backend tables, RLS, RPCs and security grants verified.");
+          } finally {
+            await sql.end();
+          }
+          TS
+          bun run /tmp/verify_backend.ts
 
       - name: Confirm no pending migrations remain
         run: |
