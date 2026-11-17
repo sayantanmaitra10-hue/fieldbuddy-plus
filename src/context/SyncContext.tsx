@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { toast } from "@/hooks/use-toast";
 
 export type QueueKind = "punch" | "task" | "status" | "proof" | "message";
@@ -14,7 +14,7 @@ type SyncContextValue = {
   online: boolean;
   syncing: boolean;
   queue: QueueItem[];
-  setOnline: (v: boolean) => void;
+  setOnline: (value: boolean) => void;
   enqueue: (item: Omit<QueueItem, "id" | "createdAt">) => string;
   flush: () => void;
   clearItem: (id: string) => void;
@@ -23,65 +23,45 @@ type SyncContextValue = {
 const SyncContext = createContext<SyncContextValue | null>(null);
 
 export const SyncProvider = ({ children }: { children: ReactNode }) => {
-  const [online, setOnlineState] = useState(true);
+  const [online, setOnlineState] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [syncing, setSyncing] = useState(false);
-  const flushingRef = useRef(false);
+  const [syncing] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setOnlineState(true);
+    const handleOffline = () => setOnlineState(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   const enqueue: SyncContextValue["enqueue"] = useCallback((item) => {
-    const id = `q-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    setQueue((prev) => [...prev, { ...item, id, createdAt: Date.now() }]);
+    const id = `q-${crypto.randomUUID()}`;
+    setQueue((previous) => [...previous, { ...item, id, createdAt: Date.now() }]);
     return id;
   }, []);
 
   const clearItem = useCallback((id: string) => {
-    setQueue((prev) => prev.filter((i) => i.id !== id));
+    setQueue((previous) => previous.filter((item) => item.id !== id));
+  }, []);
+
+  const setOnline = useCallback((requested: boolean) => {
+    setOnlineState(typeof navigator === "undefined" ? requested : navigator.onLine);
   }, []);
 
   const flush = useCallback(() => {
-    if (flushingRef.current) return;
-    setQueue((current) => {
-      if (current.length === 0) return current;
-      flushingRef.current = true;
-      setSyncing(true);
-      const items = [...current];
-      const perItem = Math.max(180, Math.min(420, 1500 / items.length));
-      items.forEach((item, idx) => {
-        setTimeout(() => {
-          setQueue((prev) => prev.filter((i) => i.id !== item.id));
-          if (idx === items.length - 1) {
-            setTimeout(() => {
-              setSyncing(false);
-              flushingRef.current = false;
-              toast({
-                title: "Synced",
-                description: `${items.length} ${items.length === 1 ? "change" : "changes"} synced successfully`,
-              });
-            }, 250);
-          }
-        }, perItem * (idx + 1));
-      });
-      return current;
+    if (!online || queue.length === 0) return;
+    toast({
+      title: "Sync handler not connected",
+      description: "This action remains queued. It will not be marked synced until its server endpoint is implemented.",
+      variant: "destructive",
     });
-  }, []);
-
-  const setOnline = useCallback(
-    (v: boolean) => {
-      setOnlineState(v);
-      if (v) {
-        // small delay so banner state transition feels natural
-        setTimeout(() => flush(), 250);
-      }
-    },
-    [flush],
-  );
-
-  // Auto-flush if queue grows while online (edge case)
-  useEffect(() => {
-    if (online && queue.length > 0 && !flushingRef.current) {
-      flush();
-    }
-  }, [online, queue.length, flush]);
+  }, [online, queue.length]);
 
   return (
     <SyncContext.Provider value={{ online, syncing, queue, setOnline, enqueue, flush, clearItem }}>
@@ -91,7 +71,7 @@ export const SyncProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const useSync = () => {
-  const ctx = useContext(SyncContext);
-  if (!ctx) throw new Error("useSync must be used within SyncProvider");
-  return ctx;
+  const context = useContext(SyncContext);
+  if (!context) throw new Error("useSync must be used within SyncProvider");
+  return context;
 };

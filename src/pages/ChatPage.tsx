@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
+import { isDemoMode } from "@/lib/runtime-config";
 import { tasks as seedTasks } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
 import { useAdmin, type TeamMember } from "@/context/AdminContext";
@@ -165,7 +166,7 @@ const buildInitialThreads = (
   return [...directThreads, ...channelThreads, ...taskThreads];
 };
 
-const ChatPage = () => {
+const ChatPageDemo = () => {
   const { role } = useRole();
   const { members, impersonatedMember } = useAdmin();
   // Who "you" are in field view: the impersonated member when active,
@@ -869,6 +870,24 @@ const ChatPage = () => {
         onConfirm={handleConfirmTask}
         submitting={submittingTask}
       />
+    </>
+  );
+};
+
+const ChatPage = () => {
+  if (isDemoMode) return <ChatPageDemo />;
+  return (
+    <>
+      <Topbar title="Messages" subtitle="Organization communication" />
+      <div className="p-6 lg:p-8">
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+          <MessageSquare className="mx-auto mb-3 size-7 text-muted-foreground" />
+          <h2 className="font-semibold">Messaging is not connected yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Demo conversations are disabled. Persistent, organization-scoped messaging will be enabled after the messaging backend is implemented.
+          </p>
+        </div>
+      </div>
     </>
   );
 };

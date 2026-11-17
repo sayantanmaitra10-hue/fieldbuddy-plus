@@ -1,7 +1,7 @@
-import { NavLink, useLocation } from "react-router-dom";
-import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog, History } from "lucide-react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { LayoutDashboard, MapPin, ListChecks, Users, Bell, MessageSquare, Settings, Shield, UserCog, History, LogOut } from "lucide-react";
 import { useRole } from "@/context/RoleContext";
-import { useAdmin } from "@/context/AdminContext";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 type NavItem = { to: string; label: string; icon: typeof MapPin; end?: boolean };
@@ -27,9 +27,10 @@ export const Sidebar = () => {
   const { role, setRole, availableRoles, canSwitch } = useRole();
   const items = role === "field" ? fieldNav : role === "admin" ? adminNav : managerNav;
   const location = useLocation();
-  const { impersonatedMember } = useAdmin();
-  const displayName = impersonatedMember?.name ?? "Arjun Mehta";
-  const displayAvatar = impersonatedMember?.avatar ?? "AM";
+  const navigate = useNavigate();
+  const { user, activeMembership, signOut } = useAuth();
+  const displayName = user?.user_metadata?.display_name ?? user?.email ?? "Workspace user";
+  const displayAvatar = String(displayName).split(" ").slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 
   return (
     <aside className="hidden lg:flex flex-col w-64 shrink-0 bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -37,8 +38,8 @@ export const Sidebar = () => {
         <div className="flex items-center gap-2.5">
           <div className="size-9 rounded-lg gradient-gold grid place-items-center text-primary font-display font-bold">F</div>
           <div>
-            <div className="font-display font-bold tracking-tight text-sidebar-foreground">FieldOps</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/60">Execution OS</div>
+            <div className="font-display font-bold tracking-tight text-sidebar-foreground">FieldBuddy Plus</div>
+            <div className="text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/60">{activeMembership?.organization_name ?? "Workspace"}</div>
           </div>
         </div>
       </div>
@@ -102,10 +103,10 @@ export const Sidebar = () => {
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium truncate text-sidebar-foreground">{displayName}</div>
             <div className="text-[11px] text-sidebar-foreground/60 truncate">
-              {impersonatedMember ? "Impersonated session" : location.pathname}
+              {location.pathname}
             </div>
           </div>
-          <Settings className="size-4 text-sidebar-foreground/60" />
+          <button type="button" aria-label="Sign out" title="Sign out" onClick={() => void signOut().then(() => navigate("/login"))} className="rounded-md p-2 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-foreground"><LogOut className="size-4" /></button>
         </div>
       </div>
     </aside>
