@@ -84,11 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       if (error) console.error("Unable to restore authentication session", error);
       setSession(data.session);
+      setMembershipsLoading(Boolean(data.session));
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      setMembershipsLoading(Boolean(nextSession));
       setLoading(false);
     });
 
