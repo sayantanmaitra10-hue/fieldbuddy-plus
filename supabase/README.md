@@ -20,6 +20,8 @@ Use a **disposable staging Supabase project**. The project reference in `supabas
 
 For this repository, the recommended path is GitHub Actions. You do not need Node.js, npm, or the Supabase CLI installed on your laptop. Follow **No local Node.js: run staging preflight in GitHub Actions** below. That workflow connects directly to Postgres by using a database URI, so it does not require `supabase login`, `supabase link`, or a Supabase Personal Access Token.
 
+The current read-only preflight against staging project `jrmwkdputphprscfomxc` completed successfully on 17 November 2026. The dry run listed 16 pending migrations and applied none. The first four migrations create the initial `app_role`, `profiles`, and `user_roles` objects; the later migrations add the multi-tenant organization, attendance, task, audit, RPC, and security layers. Before any migration push, run `supabase/validation/preflight_existing_schema.sql` in the staging SQL Editor. It verifies that the target does not already contain application tables, the `app_role` type, or a conflicting signup trigger.
+
 For a developer workstation with the Supabase CLI already installed, CLI v3 can inspect migration history and preview migrations using the same direct database URI without `supabase link`:
 
 ```bash
