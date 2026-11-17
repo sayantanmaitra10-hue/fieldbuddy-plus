@@ -47,8 +47,12 @@ jobs:
             echo "::error::SUPABASE_DB_URL must be the PostgreSQL URI copied from the Supabase Dashboard Connect dialog."
             exit 1
           fi
-          if [[ "$SUPABASE_DB_URL" == *"[YOUR-PASSWORD]"* || "$SUPABASE_DB_URL" != *"$PROJECT_REF"* ]]; then
-            echo "::error::The connection string still has a password placeholder or does not contain the selected project reference. Check the Session pooler username (postgres.PROJECT_REF) and replace the password."
+          if [[ "$SUPABASE_DB_URL" == *"[YOUR-PASSWORD]"* || "$SUPABASE_DB_URL" == *"YOUR_PASSWORD"* ]]; then
+            echo "::error::SUPABASE_DB_URL still contains the literal password placeholder. Replace it with the staging database password in the GitHub secret."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != *"$PROJECT_REF"* ]]; then
+            echo "::error::SUPABASE_DB_URL does not contain the project reference entered for this run. In the Supabase Connect dialog, select Session pooler and copy the complete URI. Its username should look like postgres.PROJECT_REF."
             exit 1
           fi
           echo "Connection string format and project reference checks passed."
