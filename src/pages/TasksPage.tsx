@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Topbar } from "@/components/layout/Topbar";
+import { isDemoMode } from "@/lib/runtime-config";
 import { TaskCard } from "@/components/TaskCard";
 import { type Task } from "@/lib/mock-data";
 import { useRole } from "@/context/RoleContext";
@@ -188,7 +189,7 @@ const ReminderField = ({
 
 
 
-const TasksPage = () => {
+const TasksPageDemo = () => {
   const { role } = useRole();
   const { online, enqueue, queue } = useSync();
   const { tasks: localTasks, addTask } = useTasks();
@@ -640,6 +641,24 @@ const TasksPage = () => {
             ))}
           </div>
         )}
+      </div>
+    </>
+  );
+};
+
+const TasksPage = () => {
+  if (isDemoMode) return <TasksPageDemo />;
+  return (
+    <>
+      <Topbar title="Tasks" subtitle="Organization task execution" />
+      <div className="p-6 lg:p-8">
+        <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+          <AlertCircle className="mx-auto mb-3 size-7 text-muted-foreground" />
+          <h2 className="font-semibold">Task services are not connected yet</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Demo tasks are disabled. Task assignment, status transitions, evidence uploads, and approvals will be enabled after the secure task backend is implemented.
+          </p>
+        </div>
       </div>
     </>
   );
