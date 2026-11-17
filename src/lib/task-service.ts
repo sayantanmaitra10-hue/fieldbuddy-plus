@@ -19,6 +19,25 @@ export interface OrganizationTask {
   updated_at: string;
 }
 
+export interface TaskAssignee {
+  user_id: string;
+  display_name: string;
+  employee_id: string | null;
+  member_role: string;
+}
+
+export async function getOrganizationAssignees(organizationId: string): Promise<TaskAssignee[]> {
+  const { data, error } = (await supabase.rpc(
+    "get_organization_assignees" as never,
+    { p_organization_id: organizationId } as never,
+  )) as unknown as {
+    data: TaskAssignee[] | null;
+    error: { message: string } | null;
+  };
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 export interface CreateTaskInput {
   organizationId: string;
   title: string;
