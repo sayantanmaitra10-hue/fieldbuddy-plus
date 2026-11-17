@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { submitAttendanceEvent } from "@/lib/attendance-service";
 
-type PunchState = "idle" | "locating" | "submitting" | "checked";
+type PunchState = "idle" | "locating" | "submitting" | "checked" | "completed";
 
 export const PunchInCard = () => {
   const [state, setState] = useState<PunchState>("idle");
@@ -16,7 +16,8 @@ export const PunchInCard = () => {
   const { activeMembership } = useAuth();
 
   const handlePunch = () => {
-    if (state !== "idle") return;
+    if (state !== "idle" && state !== "checked") return;
+    const eventType = state === "checked" ? "check_out" : "check_in";
     if (!activeMembership) {
       setLocationMessage("Your account is not connected to an active organization.");
       return;
@@ -42,7 +43,7 @@ export const PunchInCard = () => {
         setLocation(`${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} · ±${Math.round(coords.accuracy)} m`);
         setState("submitting");
         try {
-          const result = await submitAttendanceEvent(activeMembership.organization_id, "check_in", {
+          const result = await submitAttendanceEvent(activeMembership.organization_id, eventType, {
             latitude: coords.latitude,
             longitude: coords.longitude,
             accuracyMeters: coords.accuracy,
@@ -60,13 +61,16 @@ export const PunchInCard = () => {
             return;
           }
 
-          setTime(new Date(result.event.captured_at).toLocaleTimeString("en-IN", {
+          const eventTime = new Date(result.event.captured_at).toLocaleTimeString("en-IN", {
             hour: "2-digit",
             minute: "2-digit",
-          }));
-          setState("checked");
+          });
+          setTime(eventTime);
+          setState(eventType === "check_in" ? "checked" : "completed");
           toast({
-            title: result.duplicate ? "Attendance already recorded" : "Checked in successfully",
+            title: result.duplicate
+              ? "Attendance already recorded"
+              : eventType === "check_in" ? "Checked in successfully" : "Checked out successfully",
             description: "Your attendance was accepted by the server.",
           });
         } catch (error) {
@@ -97,11 +101,11 @@ export const PunchInCard = () => {
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex items-center gap-2">
             <div className="text-[11px] uppercase tracking-[0.2em] text-primary-foreground/60">
-              {state === "checked" ? "Attendance recorded" : "Start your day"}
+              {state === "completed" ? "Shift completed" : state === "checked" ? "Active shift" : "Start your day"}
             </div>
           </div>
           <h2 className="mb-3 font-display text-2xl font-semibold tracking-tight lg:text-3xl">
-            {state === "checked" ? `Checked in · ${time}` : "Ready to punch in?"}
+            {state === "completed" ? `Checked out · ${time}` : state === "checked" ? `Checked in · ${time}` : "Ready to punch in?"}
           </h2>
           <div className="flex items-center gap-2 text-sm text-primary-foreground/75">
             <MapPin className="size-4 shrink-0" />
@@ -113,10 +117,10 @@ export const PunchInCard = () => {
               <span>{locationMessage}</span>
             </p>
           )}
-          {state === "checked" && (
+          {(state === "checked" || state === "completed") && (
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent">
               <ShieldCheck className="size-3.5" />
-              Server validated · Active organization geofence
+              {state === "completed" ? "Attendance validated · Shift closed" : "Server validated · Active organization geofence"}
             </div>
           )}
         </div>
@@ -124,18 +128,19 @@ export const PunchInCard = () => {
         <motion.button
           whileTap={{ scale: 0.96 }}
           onClick={handlePunch}
-          disabled={state !== "idle"}
+          disabled={state !== "idle" && state !== "checked"}
           className="relative size-32 shrink-0 self-center rounded-full gradient-gold font-display text-base font-bold text-primary shadow-gold disabled:cursor-default disabled:opacity-90 lg:size-36"
         >
           <span className={state === "idle" ? "absolute inset-0 animate-pulse-ring rounded-full" : ""} />
           <span className="relative flex flex-col items-center justify-center gap-1">
             {(state === "locating" || state === "submitting") && <Loader2 className="size-7 animate-spin" />}
             {state === "idle" && <MapPin className="size-7" />}
-            {state === "checked" && <CheckCircle2 className="size-7" />}
+            {(state === "checked" || state === "completed") && <CheckCircle2 className="size-7" />}
             {state === "idle" && "Start Day"}
             {state === "locating" && "Locating…"}
             {state === "submitting" && "Validating…"}
-            {state === "checked" && "Checked In"}
+            {state === "checked" && "End Day"}
+            {state === "completed" && "Completed"}
           </span>
         </motion.button>
       </div>
