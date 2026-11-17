@@ -14,15 +14,36 @@ Keep `VITE_ENABLE_DEMO_DATA=false` for real organizations. Set it to `true` only
 
 The publishable/anon key is expected to be present in browser builds. Never put a service-role key in a `VITE_*` variable or browser code.
 
-## Apply migrations
+## Connect and inspect staging before applying migrations
 
-Run migrations against a disposable development Supabase project first:
+Use a **disposable staging Supabase project**. The project reference in `supabase/config.toml` is only a pointer; do not assume it is staging or safe to modify.
+
+From a terminal on a machine with Node.js installed, check out this branch and run:
 
 ```bash
-supabase login
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
+npx supabase --version
+npx supabase login
+npx supabase link --project-ref YOUR_CONFIRMED_STAGING_PROJECT_REF
+npx supabase migration list --remote
 ```
+
+The Supabase CLI v3 uses explicit `--remote` flags for commands that inspect or change a hosted database. Review the remote migration history before proceeding.
+
+Then open the SQL Editor in that same staging project and run `supabase/validation/preflight_existing_schema.sql`. It is read-only and checks that the legacy `profiles` and `user_roles` tables and required columns exist, then lists current public tables and policies. Resolve any reported mismatch before applying migrations.
+
+After reviewing the preflight results and remote migration history, preview pending migrations:
+
+```bash
+npx supabase db push --dry-run --remote
+```
+
+Only when the target project is confirmed as staging and the dry-run list is understood, apply migrations with:
+
+```bash
+npx supabase db push --remote
+```
+
+The CLI asks for confirmation before hosted changes; do not bypass that confirmation with `--yes` until you have independently verified the target and migration list. After applying, run `supabase/validation/verify_backend.sql` in the SQL Editor.
 
 Review the existing migrations and database state before applying. The backend foundation migration adds organization-scoped tables and RLS; the membership RPC exposes only the signed-in user's active organization memberships.
 
