@@ -170,96 +170,34 @@ Deno.serve(async (request) => {
     };
   }
 
-  const { data: insertedEvent, error: eventError } = await db
-    .from("attendance_events")
-    .insert({
-      organization_id: organizationId,
-      employee_id: employeeId,
-      event_type: eventType,
-      captured_at: eventTime.toISOString(),
-      latitude,
-      longitude,
-      accuracy_meters: accuracyMeters,
-      geofence_id: nearest?.id ?? null,
-      device_id: deviceId?.slice(0, 160) ?? null,
-      idempotency_key: idempotencyKey,
-      validation_status: validationStatus,
-      validation_details: validationDetails,
-    })
-    .select("id,event_type,captured_at,received_at,validation_status,attendance_record_id")
-    .single();
+  const workDate = validationStatus === "accepted"
+    ? localDate(eventTime, organization.timezone || "Asia/Kolkata")
+    : null;
 
-  if (eventError?.code === "23505") {
-    const { data: existing } = await db
-      .from("attendance_events")
-      .select("id,event_type,captured_at,received_at,validation_status,attendance_record_id")
-      .eq("organization_id", organizationId)
-      .eq("employee_id", employeeId)
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
-    if (existing) return json({ event: existing, duplicate: true });
-  }
-  if (eventError || !insertedEvent) return json({ error: "Unable to record attendance event" }, 500);
+  const { data: result, error: recordError } = await db.rpc("record_attendance_event", {
+    p_organization_id: organizationId,
+    p_employee_id: employeeId,
+    p_event_type: eventType,
+    p_captured_at: eventTime.toISOString(),
+    p_latitude: latitude,
+    p_longitude: longitude,
+    p_accuracy_meters: accuracyMeters,
+    p_geofence_id: nearest?.id ?? null,
+    p_device_id: deviceId?.slice(0, 160) ?? null,
+    p_idempotency_key: idempotencyKey,
+    p_validation_status: validationStatus,
+    p_validation_details: validationDetails,
+    p_work_date: workDate,
+  });
 
-  let attendanceRecord = null;
-  if (validationStatus === "accepted") {
-    const workDate = localDate(eventTime, organization.timezone || "Asia/Kolkata");
-    const { data: existingRecord, error: recordLookupError } = await db
-      .from("attendance_records")
-      .select("id,first_check_in_at,last_check_out_at,status")
-      .eq("organization_id", organizationId)
-      .eq("employee_id", employeeId)
-      .eq("work_date", workDate)
-      .maybeSingle();
-
-    if (recordLookupError) return json({ error: "Event saved, but attendance summary could not be loaded" }, 500);
-
-    if (eventType === "check_in") {
-      if (existingRecord) {
-        if (!existingRecord.first_check_in_at) {
-          const { data, error } = await db.from("attendance_records")
-            .update({ first_check_in_at: eventTime.toISOString(), status: "pending_review" })
-            .eq("id", existingRecord.id).select("id").single();
-          if (error) return json({ error: "Event saved, but attendance summary update failed" }, 500);
-          attendanceRecord = data;
-        } else {
-          attendanceRecord = existingRecord;
-        }
-      } else {
-        const { data, error } = await db.from("attendance_records")
-          .insert({
-            organization_id: organizationId,
-            employee_id: employeeId,
-            work_date: workDate,
-            first_check_in_at: eventTime.toISOString(),
-            status: "pending_review",
-          })
-          .select("id").single();
-        if (error) return json({ error: "Event saved, but attendance summary creation failed" }, 500);
-        attendanceRecord = data;
-      }
-    } else if (existingRecord) {
-      const { data, error } = await db.from("attendance_records")
-        .update({ last_check_out_at: eventTime.toISOString() })
-        .eq("id", existingRecord.id).select("id").single();
-      if (error) return json({ error: "Event saved, but attendance summary update failed" }, 500);
-      attendanceRecord = data;
-    }
-  }
-
-  if (attendanceRecord?.id) {
-    await db.from("attendance_events")
-      .update({ attendance_record_id: attendanceRecord.id })
-      .eq("id", insertedEvent.id);
-    insertedEvent.attendance_record_id = attendanceRecord.id;
+  if (recordError || !result) {
+    return json({ error: "Unable to save attendance event" }, 500);
   }
 
   return json({
-    event: insertedEvent,
-    attendanceRecord,
-    duplicate: false,
+    ...result,
     message: validationStatus === "accepted"
       ? "Attendance event recorded"
       : "Event recorded for manager review",
-  }, 201);
+  }, result.duplicate ? 200 : 201);
 });
