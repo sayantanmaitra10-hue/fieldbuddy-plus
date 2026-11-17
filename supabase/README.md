@@ -7,7 +7,10 @@ Create a local `.env.local` (do not commit it):
 ```bash
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY
+VITE_ENABLE_DEMO_DATA=false
 ```
+
+Keep `VITE_ENABLE_DEMO_DATA=false` for real organizations. Set it to `true` only when intentionally previewing the seeded prototype dataset; demo records are not persisted or isolated as production tenant data.
 
 The publishable/anon key is expected to be present in browser builds. Never put a service-role key in a `VITE_*` variable or browser code.
 
