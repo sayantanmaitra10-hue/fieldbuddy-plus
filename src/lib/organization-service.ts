@@ -8,6 +8,16 @@ export interface InviteMemberInput {
   displayName?: string;
 }
 
+export interface OrganizationDirectoryMember {
+  user_id: string;
+  display_name: string;
+  employee_id: string | null;
+  avatar_url: string | null;
+  member_role: OrganizationRole;
+  member_status: "invited" | "active" | "suspended" | "removed";
+  joined_at: string | null;
+}
+
 export async function inviteOrganizationMember(input: InviteMemberInput) {
   const { data, error } = await supabase.functions.invoke("invite-member", {
     body: {
@@ -27,4 +37,17 @@ export async function inviteOrganizationMember(input: InviteMemberInput) {
 
   if (data?.error) throw new Error(String(data.error));
   return data;
+}
+
+export async function getOrganizationDirectory(organizationId: string) {
+  const { data, error } = (await supabase.rpc(
+    "get_organization_directory" as never,
+    { p_organization_id: organizationId } as never,
+  )) as unknown as {
+    data: OrganizationDirectoryMember[] | null;
+    error: { message: string } | null;
+  };
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
