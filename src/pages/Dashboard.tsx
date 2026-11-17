@@ -1,5 +1,6 @@
 import { Topbar } from "@/components/layout/Topbar";
 import { employees, tasks, alerts, activitySeries } from "@/lib/mock-data";
+import { isDemoMode } from "@/lib/runtime-config";
 import { StatusPill } from "@/components/StatusPill";
 import { Users, CheckCircle2, ListChecks, AlertTriangle, MapPin, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -18,20 +19,23 @@ const Stat = ({ icon: Icon, label, value, hint, accent }: any) => (
 );
 
 const Dashboard = () => {
-  const checkedIn = employees.filter((e) => e.checkedIn).length;
-  const pending = tasks.filter((t) => t.status === "pending").length;
-  const inprog = tasks.filter((t) => t.status === "in_progress").length;
-  const done = tasks.filter((t) => t.status === "completed").length;
+  const dashboardEmployees = isDemoMode ? employees : [];
+  const dashboardTasks = isDemoMode ? tasks : [];
+  const dashboardAlerts = isDemoMode ? alerts : [];
+  const dashboardActivity = isDemoMode ? activitySeries : [];
+  const checkedIn = dashboardEmployees.filter((e) => e.checkedIn).length;
+  const inprog = dashboardTasks.filter((t) => t.status === "in_progress").length;
+  const done = dashboardTasks.filter((t) => t.status === "completed").length;
 
   return (
     <>
-      <Topbar title="Operations Dashboard" subtitle="Real-time field activity · Mumbai region" />
+      <Topbar title="Operations Dashboard" subtitle="Organization workforce overview" />
       <div className="p-4 lg:p-8 space-y-6 max-w-7xl">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-          <Stat icon={Users} label="Checked in today" value={`${checkedIn}/${employees.length}`} hint="+12% vs yesterday" />
+          <Stat icon={Users} label="Checked in today" value={`${checkedIn}/${dashboardEmployees.length}`} />
           <Stat icon={ListChecks} label="Tasks in progress" value={inprog} />
           <Stat icon={CheckCircle2} label="Tasks completed" value={done} accent="text-success" hint="On track" />
-          <Stat icon={AlertTriangle} label="Open alerts" value={alerts.length} accent="text-destructive" />
+          <Stat icon={AlertTriangle} label="Open alerts" value={dashboardAlerts.length} accent="text-destructive" />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-4">
@@ -48,7 +52,7 @@ const Dashboard = () => {
             </div>
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={activitySeries}>
+                <AreaChart data={dashboardActivity}>
                   <defs>
                     <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="hsl(var(--primary-glow))" stopOpacity={0.4} />
@@ -75,7 +79,7 @@ const Dashboard = () => {
               <Link to="/app/alerts" className="text-xs text-primary font-medium">View all</Link>
             </div>
             <div className="space-y-3">
-              {alerts.slice(0, 4).map((a) => (
+              {dashboardAlerts.slice(0, 4).map((a) => (
                 <div key={a.id} className="flex gap-3 p-3 rounded-lg bg-muted/40 border border-border">
                   <div className={`size-1.5 rounded-full mt-1.5 shrink-0 ${a.severity === "high" ? "bg-destructive" : a.severity === "medium" ? "bg-warning" : "bg-info"}`} />
                   <div className="min-w-0">
@@ -107,7 +111,7 @@ const Dashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {employees.map((e) => (
+                {dashboardEmployees.map((e) => (
                   <tr key={e.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-5 py-3">
                       <Link to={`/app/team/${e.id}`} className="flex items-center gap-3">
