@@ -73,16 +73,10 @@ export const PunchInCard = () => {
         }
 
         const rejected = [...results].reverse().find((item) => item.event.validation_status !== "accepted");
-        if (rejected) {
-          setState("idle");
-          setLocationMessage(validationMessage(rejected.event.validation_status));
-          return;
-        }
-
         const record = await getTodayAttendance(organizationId);
         if (active) {
           applyAttendanceRecord(record, setState, setTime);
-          setLocationMessage(null);
+          setLocationMessage(rejected ? validationMessage(rejected.event.validation_status) : null);
         }
       } catch (error) {
         if (active) setLocationMessage(error instanceof Error ? error.message : "Unable to sync queued attendance.");
