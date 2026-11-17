@@ -1,58 +1,45 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { Role } from "@/lib/mock-data";
+import { useAuth } from "@/context/AuthContext";
 
 interface RoleViewCtx {
   assignedRoles: Role[];
   availableRoles: Role[];
   activeRole: Role;
   canSwitch: boolean;
-  setActiveRole: (r: Role) => void;
+  setActiveRole: (role: Role) => void;
 }
 
-const STORAGE_KEY = "fieldops:active-role";
-const ALL_ROLES: Role[] = ["field", "manager", "admin"];
-
 const Ctx = createContext<RoleViewCtx>({
-  assignedRoles: ALL_ROLES,
-  availableRoles: ALL_ROLES,
+  assignedRoles: [],
+  availableRoles: [],
   activeRole: "field",
-  canSwitch: true,
-  setActiveRole: () => {},
+  canSwitch: false,
+  setActiveRole: () => undefined,
 });
 
+const toAppRole = (role?: string): Role => {
+  if (role === "org_admin" || role === "hr_admin") return "admin";
+  if (role === "manager" || role === "supervisor") return "manager";
+  return "field";
+};
+
 export const RoleProvider = ({ children }: { children: ReactNode }) => {
-  const availableRoles = useMemo<Role[]>(() => ALL_ROLES, []);
-
-  const [activeRole, setActiveRoleState] = useState<Role>(() => {
-    if (typeof window === "undefined") return "field";
-    const stored = window.localStorage.getItem(STORAGE_KEY) as Role | null;
-    return stored && ALL_ROLES.includes(stored) ? stored : "field";
-  });
-
-  useEffect(() => {
-    if (!availableRoles.includes(activeRole)) {
-      setActiveRoleState(availableRoles[0]);
-    }
-  }, [availableRoles, activeRole]);
-
-  const setActiveRole = (r: Role) => {
-    if (!availableRoles.includes(r)) return;
-    setActiveRoleState(r);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, r);
-    } catch {
-      /* ignore */
-    }
-  };
+  const { activeMembership } = useAuth();
+  const activeRole = toAppRole(activeMembership?.member_role);
+  const assignedRoles = useMemo<Role[]>(
+    () => (activeMembership ? [activeRole] : []),
+    [activeMembership, activeRole],
+  );
 
   return (
     <Ctx.Provider
       value={{
-        assignedRoles: availableRoles,
-        availableRoles,
+        assignedRoles,
+        availableRoles: assignedRoles,
         activeRole,
-        canSwitch: availableRoles.length > 1,
-        setActiveRole,
+        canSwitch: false,
+        setActiveRole: () => undefined,
       }}
     >
       {children}
