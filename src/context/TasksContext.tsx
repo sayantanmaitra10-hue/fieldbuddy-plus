@@ -10,6 +10,7 @@ import {
   type WorkloadBand,
 } from "@/lib/smart-task";
 import { defaultReminderOffsetHours, reminderTimeFor } from "@/lib/reminder";
+import { isDemoMode } from "@/lib/runtime-config";
 
 type CreateInput = {
   title: string;
@@ -45,8 +46,8 @@ const TasksContext = createContext<TasksContextValue | null>(null);
 const justNow = () => "just now";
 
 export const TasksProvider = ({ children }: { children: ReactNode }) => {
-  const [tasks, setTasks] = useState<Task[]>(seedTasks);
-  const [alerts, setAlerts] = useState<Alert[]>(seedAlerts);
+  const [tasks, setTasks] = useState<Task[]>(isDemoMode ? seedTasks : []);
+  const [alerts, setAlerts] = useState<Alert[]>(isDemoMode ? seedAlerts : []);
 
   const pushAlert = useCallback((alert: Omit<Alert, "id" | "time">) => {
     setAlerts((prev) => [
