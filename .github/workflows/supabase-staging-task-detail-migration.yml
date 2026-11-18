@@ -105,7 +105,7 @@ jobs:
         run: supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
 
       - name: Apply additive task detail migration to staging only
-        run: supabase db push --db-url "$SUPABASE_DB_URL"
+        run: supabase db push --yes --db-url "$SUPABASE_DB_URL"
 
       - name: Verify task detail tables, private bucket, policies and RPC grants
         shell: bash
