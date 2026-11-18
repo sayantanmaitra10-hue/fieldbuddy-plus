@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -41,6 +42,10 @@ const ACTIVE_ORG_KEY = "fieldbuddy:active-organization";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  // Track the authenticated user separately from token refreshes. Supabase can
+  // emit TOKEN_REFRESHED when a background tab becomes active again; that must
+  // not blank the protected workspace for a user whose identity has not changed.
+  const authUserIdRef = useRef<string | null>(null);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
   const [activeOrganizationId, setActiveOrganizationId] = useState<string | null>(() => {
@@ -83,14 +88,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data, error }) => {
       if (!mounted) return;
       if (error) console.error("Unable to restore authentication session", error);
+      const nextUserId = data.session?.user.id ?? null;
+      authUserIdRef.current = nextUserId;
       setSession(data.session);
       setMembershipsLoading(Boolean(data.session));
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const nextUserId = nextSession?.user.id ?? null;
+      const identityChanged = authUserIdRef.current !== nextUserId;
+      authUserIdRef.current = nextUserId;
+
       setSession(nextSession);
-      setMembershipsLoading(Boolean(nextSession));
+
+      if (!nextSession) {
+        // A sign-out must immediately clear tenant membership state.
+        setMemberships([]);
+        setMembershipsLoading(false);
+      } else if (identityChanged) {
+        // Initial session restoration or a genuine account switch requires a
+        // fresh membership lookup. Same-user token refreshes do not.
+        setMembershipsLoading(true);
+      }
+
       setLoading(false);
     });
 
