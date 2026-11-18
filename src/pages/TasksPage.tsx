@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, RefreshCw, ListChecks, Check, X, Play, Send } from "lucide-react";
+import { Loader2, Plus, RefreshCw, ListChecks, Play } from "lucide-react";
 
 const statusLabels: Record<TaskStatus, string> = {
   assigned: "Assigned",
@@ -276,7 +276,9 @@ const TasksPage = () => {
                 <article key={task.id} className="rounded-xl border border-border bg-card p-5 shadow-card">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h3 className="font-semibold leading-snug">{task.title}</h3>
+                      <Link to={`/app/tasks/${task.id}`} className="font-semibold leading-snug text-foreground hover:text-primary hover:underline">
+                        {task.title}
+                      </Link>
                       {task.description && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{task.description}</p>}
                     </div>
                     <Badge variant="outline">{priorityLabels[task.priority]}</Badge>
@@ -295,21 +297,21 @@ const TasksPage = () => {
                     {isOverdue(task) && <Badge variant="destructive">Past due</Badge>}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {nextStatus && (
+                    {nextStatus && nextStatus !== "submitted" && (
                       <Button size="sm" disabled={busy} onClick={() => void handleTransition(task, nextStatus)}>
-                        {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : nextStatus === "submitted" ? <Send className="mr-1 size-3.5" /> : <Play className="mr-1 size-3.5" />}
-                        {nextStatus === "accepted" ? "Accept" : nextStatus === "in_progress" ? "Start / Resume" : "Submit for review"}
+                        {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : <Play className="mr-1 size-3.5" />}
+                        {nextStatus === "accepted" ? "Accept" : "Start / Resume"}
+                      </Button>
+                    )}
+                    {nextStatus === "submitted" && (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={`/app/tasks/${task.id}`}>Open to attach proof & submit</Link>
                       </Button>
                     )}
                     {canReview && (
-                      <>
-                        <Button size="sm" disabled={busy} onClick={() => void handleTransition(task, "approved")}>
-                          <Check className="mr-1 size-3.5" /> Approve
-                        </Button>
-                        <Button size="sm" variant="outline" disabled={busy} onClick={() => void handleTransition(task, "rejected")}>
-                          <X className="mr-1 size-3.5" /> Request changes
-                        </Button>
-                      </>
+                      <Button asChild size="sm">
+                        <Link to={`/app/tasks/${task.id}`}>Review evidence</Link>
+                      </Button>
                     )}
                     {canCancel && (
                       <Button size="sm" variant="ghost" disabled={busy} onClick={() => void handleTransition(task, "cancelled")}>
