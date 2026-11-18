@@ -62,7 +62,7 @@ const TasksPage = () => {
   const [assignedTo, setAssignedTo] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("normal");
-  const [filter, setFilter] = useState<"all" | "open" | "review" | "closed">("all");
+  const [filter, setFilter] = useState<"all" | "open" | "review" | "overdue" | "closed">("all");
 
   const refresh = useCallback(async (quiet = false) => {
     if (!organizationId) {
@@ -145,11 +145,29 @@ const TasksPage = () => {
     }
   }
 
+  const now = Date.now();
+  const isOverdue = (task: OrganizationTask) =>
+    Boolean(
+      task.due_at &&
+      new Date(task.due_at).getTime() < now &&
+      ["assigned", "accepted", "in_progress", "rejected"].includes(task.status)
+    );
+  const assigneeNames = new Map(assignees.map((person) => [person.user_id, person.display_name]));
+
   const visibleTasks = tasks.filter((task) => {
     if (filter === "open") return !["approved", "cancelled"].includes(task.status);
     if (filter === "review") return task.status === "submitted";
+    if (filter === "overdue") return isOverdue(task);
     if (filter === "closed") return ["approved", "cancelled"].includes(task.status);
     return true;
+  }).sort((a, b) => {
+    // Keep the manager's most time-sensitive work visible first.
+    const overdueDifference = Number(isOverdue(b)) - Number(isOverdue(a));
+    if (overdueDifference !== 0) return overdueDifference;
+    const priorityRank: Record<TaskPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
+    const priorityDifference = priorityRank[a.priority] - priorityRank[b.priority];
+    if (priorityDifference !== 0) return priorityDifference;
+    return new Date(a.due_at ?? "9999-12-31").getTime() - new Date(b.due_at ?? "9999-12-31").getTime();
   });
 
   return (
@@ -219,6 +237,7 @@ const TasksPage = () => {
             ["all", "All tasks"],
             ["open", "Open"],
             ["review", "Awaiting review"],
+            ["overdue", "Overdue"],
             ["closed", "Closed"],
           ] as const).map(([value, label]) => (
             <Button key={value} size="sm" variant={filter === value ? "default" : "outline"} onClick={() => setFilter(value)}>
@@ -256,7 +275,16 @@ const TasksPage = () => {
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant="secondary">{statusLabels[task.status]}</Badge>
-                    {task.due_at && <span>Due {new Date(task.due_at).toLocaleString("en-IN")}</span>}
+                    {canManage && task.assigned_to && (
+                      <span>Assigned to {assigneeNames.get(task.assigned_to) ?? "Team member"}</span>
+                    )}
+                    {task.due_at && (
+                      <span className={isOverdue(task) ? "font-semibold text-destructive" : ""}>
+                        {isOverdue(task) ? "Overdue · " : "Due "}
+                        {new Date(task.due_at).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                    {isOverdue(task) && <Badge variant="destructive">Past due</Badge>}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {nextStatus && (
