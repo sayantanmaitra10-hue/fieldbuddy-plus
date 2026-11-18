@@ -24,3 +24,12 @@ jobs:
         run: bun run build
       - name: Unit tests
         run: bun run test
+      - name: Set up Deno for Edge Function validation
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type check Supabase Edge Functions
+        run: |
+          deno check --no-lock supabase/functions/invite-member/index.ts
+          deno check --no-lock supabase/functions/attendance-event/index.ts
+          deno check --no-lock supabase/functions/task-action/index.ts
