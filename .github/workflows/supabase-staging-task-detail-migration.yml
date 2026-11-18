@@ -1,0 +1,162 @@
+name: Deploy task detail backend to staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: "Confirmed Supabase staging project reference"
+        required: true
+        default: "jrmwkdputphprscfomxc"
+        type: string
+      confirmation:
+        description: "Type APPLY_TASK_DETAIL_TO_STAGING to authorize this additive migration"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-task-detail:
+    name: Apply and verify task detail migration in staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PROJECT_REF: ${{ inputs.project_ref }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Check out reviewed backend branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/backend-foundation
+
+      - name: Validate staging target and explicit confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_REF="jrmwkdputphprscfomxc"
+          EXPECTED_MIGRATION="20261118140000_task_detail_and_attachments.sql"
+
+          if [[ -z "${SUPABASE_DB_URL:-}" ]]; then
+            echo "::error::SUPABASE_DB_URL secret is missing."
+            exit 1
+          fi
+          if [[ "$PROJECT_REF" != "$EXPECTED_REF" ]]; then
+            echo "::error::This workflow is locked to the confirmed staging project."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != *"$EXPECTED_REF"* ]]; then
+            echo "::error::The database connection does not match the staging project reference."
+            exit 1
+          fi
+          if [[ "$CONFIRMATION" != "APPLY_TASK_DETAIL_TO_STAGING" ]]; then
+            echo "::error::The required staging confirmation phrase does not match."
+            exit 1
+          fi
+          if [[ ! -f "supabase/migrations/$EXPECTED_MIGRATION" ]]; then
+            echo "::error::The reviewed task detail migration is missing from the feature branch."
+            exit 1
+          fi
+          CONFIG_PROJECT_REF="$(sed -n 's/^project_id = "\(.*\)"/\1/p' supabase/config.toml)"
+          if [[ "$CONFIG_PROJECT_REF" != "$EXPECTED_REF" ]]; then
+            echo "::error::supabase/config.toml does not point at the confirmed staging project."
+            exit 1
+          fi
+          echo "Staging target, confirmation and migration file validated. No secret values were printed."
+
+      - name: Verify existing staging baseline before applying additive migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL=$(cat <<'SQL'
+          SELECT CASE
+            WHEN to_regclass('public.organizations') IS NOT NULL
+              AND to_regclass('public.organization_members') IS NOT NULL
+              AND to_regclass('public.tasks') IS NOT NULL
+              AND to_regclass('public.task_comments') IS NOT NULL
+              AND to_regclass('public.task_status_history') IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM public.organizations
+                WHERE slug = 'fieldbuddy-staging' AND is_active = true
+              )
+            THEN 'STAGING_TASK_BASELINE_PASS'
+            ELSE 'STAGING_TASK_BASELINE_FAIL'
+          END AS deployment_guard;
+          SQL
+          )
+          RESULT="$(supabase db query "$SQL" --db-url "$SUPABASE_DB_URL" --read-only --output table)"
+          echo "$RESULT"
+          if ! grep -q "STAGING_TASK_BASELINE_PASS" <<< "$RESULT"; then
+            echo "::error::The existing FieldBuddy staging baseline was not found. No migration was applied."
+            exit 1
+          fi
+
+      - name: Check current migration history
+        run: supabase migration list --db-url "$SUPABASE_DB_URL"
+
+      - name: Preview pending migration changes
+        run: supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
+
+      - name: Apply additive task detail migration to staging only
+        run: supabase db push --db-url "$SUPABASE_DB_URL"
+
+      - name: Verify task detail tables, private bucket, policies and RPC grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL=$(cat <<'SQL'
+          SELECT CASE
+            WHEN to_regclass('public.task_attachments') IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM storage.buckets
+                WHERE id = 'task-proof' AND public = false
+                  AND file_size_limit = 10485760
+              )
+              AND EXISTS (
+                SELECT 1 FROM pg_policies
+                WHERE schemaname = 'public'
+                  AND tablename = 'task_attachments'
+                  AND policyname = 'task participants read attachments'
+              )
+              AND EXISTS (
+                SELECT 1 FROM pg_policies
+                WHERE schemaname = 'storage'
+                  AND tablename = 'objects'
+                  AND policyname = 'task proof participants upload'
+              )
+              AND has_function_privilege(
+                'authenticated',
+                'public.get_organization_task_detail(uuid,uuid)',
+                'EXECUTE'
+              )
+              AND has_function_privilege(
+                'authenticated',
+                'public.add_task_comment(uuid,uuid,text)',
+                'EXECUTE'
+              )
+              AND has_function_privilege(
+                'authenticated',
+                'public.register_task_attachment(uuid,uuid,text,text,text,bigint)',
+                'EXECUTE'
+              )
+            THEN 'TASK_DETAIL_STAGING_VERIFY_PASS'
+            ELSE 'TASK_DETAIL_STAGING_VERIFY_FAIL'
+          END AS verification;
+          SQL
+          )
+          RESULT="$(supabase db query "$SQL" --db-url "$SUPABASE_DB_URL" --read-only --output table)"
+          echo "$RESULT"
+          if ! grep -q "TASK_DETAIL_STAGING_VERIFY_PASS" <<< "$RESULT"; then
+            echo "::error::Task detail staging verification failed."
+            exit 1
+          fi
+
+      - name: Confirm no pending migrations remain
+        run: |
+          supabase migration list --db-url "$SUPABASE_DB_URL"
+          supabase db push --dry-run --db-url "$SUPABASE_DB_URL"
+
+      - name: Deployment summary
+        run: echo "The additive task detail backend migration was applied and verified in the confirmed staging project. No frontend deployment or Edge Function deployment was performed."
