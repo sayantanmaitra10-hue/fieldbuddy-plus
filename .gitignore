@@ -12,6 +12,15 @@ dist
 dist-ssr
 *.local
 
+# Lovable requires the root .env file to be versioned for build-time VITE_ values.
+# That file must contain ONLY browser-safe public VITE_* settings.
+# Never place service-role keys, database passwords, or private tokens in it.
+.env.*
+!.env.example
+
+# Supabase local Edge Function secrets must remain private.
+supabase/functions/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -22,8 +31,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# Environment files (keep the checked-in example only)
-.env
-.env.*
-!.env.example
