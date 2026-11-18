@@ -1,0 +1,99 @@
+name: Deploy Supabase staging Edge Functions
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_ref:
+        description: "Confirmed staging project reference"
+        required: true
+        default: "jrmwkdputphprscfomxc"
+        type: string
+      confirmation:
+        description: "Type DEPLOY_EDGE_FUNCTIONS_TO_STAGING to authorize deployment"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fieldbuddy-supabase-staging-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy-functions:
+    name: Deploy reviewed Edge Functions to staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      PROJECT_REF: ${{ inputs.project_ref }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      EXPECTED_PROJECT_REF: "jrmwkdputphprscfomxc"
+
+    steps:
+      - name: Check out backend development branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/backend-foundation
+
+      - name: Validate staging target and deployment authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
+            echo "::error::Add a Supabase personal access token as the GitHub Actions secret SUPABASE_ACCESS_TOKEN."
+            exit 1
+          fi
+          if [[ -z "${SUPABASE_DB_URL:-}" ]]; then
+            echo "::error::SUPABASE_DB_URL secret is missing."
+            exit 1
+          fi
+          if [[ "$PROJECT_REF" != "$EXPECTED_PROJECT_REF" ]]; then
+            echo "::error::This workflow is restricted to the confirmed FieldBuddy staging project."
+            exit 1
+          fi
+          if [[ "$CONFIRMATION" != "DEPLOY_EDGE_FUNCTIONS_TO_STAGING" ]]; then
+            echo "::error::Type DEPLOY_EDGE_FUNCTIONS_TO_STAGING in the confirmation field."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != postgres://* && "$SUPABASE_DB_URL" != postgresql://* ]]; then
+            echo "::error::SUPABASE_DB_URL must be a PostgreSQL connection URI."
+            exit 1
+          fi
+          if [[ "$SUPABASE_DB_URL" != *"$PROJECT_REF"* ]]; then
+            echo "::error::The database URI does not match the confirmed staging project."
+            exit 1
+          fi
+          CONFIG_PROJECT_REF="$(sed -n 's/^project_id = "\(.*\)"/\1/p' supabase/config.toml)"
+          if [[ "$CONFIG_PROJECT_REF" != "$PROJECT_REF" ]]; then
+            echo "::error::supabase/config.toml does not match the confirmed staging project."
+            exit 1
+          fi
+          for function_name in invite-member attendance-event task-action; do
+            if [[ ! -f "supabase/functions/$function_name/index.ts" ]]; then
+              echo "::error::Missing function source: $function_name"
+              exit 1
+            fi
+          done
+          echo "Staging target and all three function sources validated. No secrets were printed."
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      - name: Deploy invitation, attendance and task functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for function_name in invite-member attendance-event task-action; do
+            echo "Deploying $function_name to the confirmed staging project..."
+            supabase functions deploy "$function_name" --project-ref "$PROJECT_REF"
+          done
+
+      - name: Deployment summary
+        run: |
+          echo "Successfully submitted all three Edge Functions for deployment to the confirmed FieldBuddy staging project."
+          echo "This workflow does not modify database migrations or application data."
