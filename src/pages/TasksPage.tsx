@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAuth } from "@/context/AuthContext";
 import { useRole } from "@/context/RoleContext";
@@ -62,7 +63,14 @@ const TasksPage = () => {
   const [assignedTo, setAssignedTo] = useState("");
   const [dueAt, setDueAt] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("normal");
-  const [filter, setFilter] = useState<"all" | "open" | "review" | "overdue" | "closed">("all");
+  const [searchParams] = useSearchParams();
+  const requestedFilter = searchParams.get("filter");
+  const [filter, setFilter] = useState<"all" | "open" | "review" | "overdue" | "closed">(
+    requestedFilter === "open" || requestedFilter === "review" ||
+    requestedFilter === "overdue" || requestedFilter === "closed"
+      ? requestedFilter
+      : "all",
+  );
 
   const refresh = useCallback(async (quiet = false) => {
     if (!organizationId) {
