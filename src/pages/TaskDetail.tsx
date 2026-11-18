@@ -1,550 +1,452 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
-import { employees } from "@/lib/mock-data";
-import { StatusPill } from "@/components/StatusPill";
+import { useAuth } from "@/context/AuthContext";
+import { useRole } from "@/context/RoleContext";
+import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+  addOrganizationTaskComment,
+  getOrganizationTaskDetail,
+  getTaskAttachmentSignedUrl,
+  transitionOrganizationTask,
+  uploadOrganizationTaskAttachment,
+  type OrganizationTaskDetail,
+  type TaskStatus,
+} from "@/lib/task-service";
 import {
   ArrowLeft,
-  MapPin,
-  Clock,
-  Camera,
-  Send,
+  CalendarClock,
+  Check,
   CheckCircle2,
-  Play,
-  Image as ImageIcon,
+  Clock3,
+  Download,
+  FileText,
+  Loader2,
   MessageSquare,
-  CloudOff,
-  Sparkles,
-  AlertTriangle,
-  CalendarIcon,
-  Users,
-  AlarmClock,
+  Paperclip,
+  Play,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Upload,
+  X,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useSync } from "@/context/SyncContext";
-import { useTasks } from "@/context/TasksContext";
-import { useRole } from "@/context/RoleContext";
-import {
-  defaultHoursFor,
-  suggestAlternates,
-} from "@/lib/smart-task";
-import { WorkloadPill } from "@/components/WorkloadPill";
-import { ExtendedTimelineBanner } from "@/components/ExtendedTimelineBanner";
-import { cn } from "@/lib/utils";
+
+const statusLabels: Record<TaskStatus, string> = {
+  assigned: "Assigned",
+  accepted: "Accepted",
+  in_progress: "In progress",
+  submitted: "Awaiting review",
+  approved: "Approved",
+  rejected: "Changes requested",
+  cancelled: "Cancelled",
+};
+
+const priorityLabels: Record<string, string> = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
+  urgent: "Urgent",
+};
+
+const employeeNextStatus: Partial<Record<TaskStatus, TaskStatus>> = {
+  assigned: "accepted",
+  accepted: "in_progress",
+  in_progress: "submitted",
+  rejected: "in_progress",
+};
+
+const dateTime = (value: string | null | undefined) =>
+  value
+    ? new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+    : "Not set";
 
 const TaskDetail = () => {
   const { id } = useParams();
-  const nav = useNavigate();
-  const { toast } = useToast();
-  const { online, enqueue } = useSync();
-  const { tasks, updateTask, setDeadline, reassignTask, pendingFor } = useTasks();
+  const navigate = useNavigate();
+  const { activeMembership, user } = useAuth();
   const { role } = useRole();
+  const { toast } = useToast();
+  const organizationId = activeMembership?.organization_id;
+  const canManage = role === "manager" || role === "admin";
 
-  const t = tasks.find((x) => x.id === id);
-  const [hasProof, setHasProof] = useState((t?.proof?.length ?? 0) > 0);
-  const [proofPending, setProofPending] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [thread, setThread] = useState(t?.messages ?? []);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [pendingDate, setPendingDate] = useState<Date | undefined>(
-    t ? new Date(t.deadline) : undefined,
-  );
-  const [pendingTime, setPendingTime] = useState<string>(
-    t
-      ? new Date(t.deadline).toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-      : "17:00",
-  );
+  const [detail, setDetail] = useState<OrganizationTaskDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [openingAttachment, setOpeningAttachment] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [comment, setComment] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
 
-  const status = t?.status ?? "pending";
-  const defHours = t?.defaultHours ?? defaultHoursFor();
-  const assigneeId = t?.assigneeId ?? "";
-  const pendingForUser = pendingFor(assigneeId);
-  const pendingCount = pendingForUser.length;
-  const canAdjust = pendingCount > 1;
-  const isManager = role === "manager" || role === "admin";
+  const load = useCallback(async (quiet = false) => {
+    if (!organizationId || !id) {
+      setDetail(null);
+      setLoading(false);
+      return;
+    }
+    if (quiet) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const result = await getOrganizationTaskDetail(organizationId, id);
+      setDetail(result);
+    } catch (error) {
+      setDetail(null);
+      toast({
+        title: "Unable to load task",
+        description: error instanceof Error ? error.message : "The task may not exist or you may not have access.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [organizationId, id, toast]);
 
-  const alternates = useMemo(
-    () => suggestAlternates(assigneeId, employees, tasks, 3),
-    [assigneeId, tasks],
-  );
+  useEffect(() => { void load(); }, [load]);
 
-  if (!t) return <div className="p-8">Task not found.</div>;
-
-  const send = () => {
-    if (!msg.trim()) return;
-    setThread([
-      ...thread,
-      {
-        id: String(Date.now()),
-        from: "You",
-        text: msg,
-        time: new Date().toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ]);
-    if (!online) enqueue({ kind: "message", label: `Message on ${t.title}` });
-    setMsg("");
-  };
-
-  const complete = () => {
-    if (!hasProof) {
+  async function handleTransition(nextStatus: TaskStatus) {
+    if (!organizationId || !detail) return;
+    if (nextStatus === "submitted" && detail.attachments.length === 0) {
       toast({
         title: "Proof required",
-        description: "Upload a photo or video before marking complete.",
+        description: "Upload at least one proof-of-work file before submitting this task for review.",
         variant: "destructive",
       });
       return;
     }
-    updateTask(t.id, { status: "completed" });
-    if (!online) {
-      enqueue({ kind: "status", label: `Completed: ${t.title}` });
-      toast({ title: "Completed (offline)", description: "Will sync when you reconnect" });
-    } else {
-      toast({ title: "Task completed", description: "Manager notified." });
-    }
-  };
-
-  const saveDeadline = () => {
-    if (!pendingDate) return;
-    const [h, m] = pendingTime.split(":").map(Number);
-    const dl = new Date(pendingDate);
-    dl.setHours(h, m, 0, 0);
-    if (dl.getTime() <= Date.now()) {
+    setActionBusy(true);
+    try {
+      await transitionOrganizationTask({
+        organizationId,
+        taskId: detail.task.id,
+        nextStatus,
+      });
       toast({
-        title: "Invalid deadline",
-        description: "Pick a future date and time.",
+        title: "Task updated",
+        description: `Task status changed to ${statusLabels[nextStatus]}.`,
+      });
+      await load(true);
+    } catch (error) {
+      toast({
+        title: "Could not update task",
+        description: error instanceof Error ? error.message : "Refresh and try again.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setActionBusy(false);
     }
-    const result = setDeadline(t.id, dl.toISOString());
-    setDatePickerOpen(false);
-    if (result?.extended) {
-      toast({
-        title: "Extended timeline flagged",
-        description: "Manager has been notified — task may be reassigned.",
-      });
-    } else {
-      toast({ title: "Deadline updated" });
-    }
-  };
+  }
 
-  const handleReassign = (employeeId: string) => {
-    const updated = reassignTask(t.id, employeeId);
-    if (updated) {
-      const sysMsg = {
-        id: `sys-${Date.now()}`,
-        from: "System",
-        text: `🔁 Reassigned to ${updated.assignee} for faster turnaround.`,
-        time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-      };
-      setThread((prev) => [...prev, sysMsg]);
-      toast({ title: "Reassigned", description: `Task handed off to ${updated.assignee}.` });
+  async function handleUpload() {
+    if (!organizationId || !user || !detail || !selectedFile) return;
+    setUploading(true);
+    try {
+      await uploadOrganizationTaskAttachment({
+        organizationId,
+        taskId: detail.task.id,
+        userId: user.id,
+        file: selectedFile,
+      });
+      setSelectedFile(null);
+      toast({
+        title: "Proof attached",
+        description: "The file is stored privately and linked to this task.",
+      });
+      await load(true);
+    } catch (error) {
+      toast({
+        title: "Proof upload failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
     }
-  };
+  }
+
+  async function handleOpenAttachment(attachmentId: string, storagePath: string) {
+    setOpeningAttachment(attachmentId);
+    try {
+      const signedUrl = await getTaskAttachmentSignedUrl(storagePath);
+      window.open(signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast({
+        title: "Unable to open attachment",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setOpeningAttachment(null);
+    }
+  }
+
+  async function handleComment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!organizationId || !detail || !comment.trim()) return;
+    setSendingComment(true);
+    try {
+      await addOrganizationTaskComment({
+        organizationId,
+        taskId: detail.task.id,
+        body: comment,
+      });
+      setComment("");
+      await load(true);
+    } catch (error) {
+      toast({
+        title: "Comment not saved",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingComment(false);
+    }
+  }
+
+  const task = detail?.task;
+  const isAssignee = Boolean(task && task.assigned_to === user?.id);
+  const employeeAction = task && isAssignee ? employeeNextStatus[task.status] : undefined;
+  const isClosed = task ? ["approved", "cancelled"].includes(task.status) : false;
+  const canUploadProof = Boolean(task && !isClosed && (isAssignee || canManage));
+
+  if (loading) {
+    return (
+      <>
+        <Topbar title="Task detail" subtitle="Loading task record" />
+        <div className="flex items-center justify-center gap-2 p-16 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Loading live task details…
+        </div>
+      </>
+    );
+  }
+
+  if (!detail || !task) {
+    return (
+      <>
+        <Topbar title="Task detail" subtitle="Task record unavailable" />
+        <div className="mx-auto max-w-3xl space-y-4 p-6">
+          <p className="text-sm text-muted-foreground">This task could not be loaded from the organisation database, or your account does not have permission to view it.</p>
+          <Button asChild variant="outline"><Link to="/app/tasks"><ArrowLeft className="mr-2 size-4" /> Back to tasks</Link></Button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
-      <Topbar title="Task detail" subtitle={t.location} />
-      <div className="p-4 lg:p-8 max-w-5xl space-y-6">
-        <button
-          onClick={() => nav(-1)}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" /> Back
-        </button>
-
-        <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="font-mono text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">
-              {t.code}
-            </span>
-            <StatusPill status={status} />
-            <StatusPill status={t.priority} />
-            {t.source === "chat" && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-accent/40 bg-accent/15 text-accent-foreground text-[10px] font-semibold uppercase tracking-wider">
-                <MessageSquare className="size-3" /> From chat
-              </span>
-            )}
-            {t.extendedTimeline && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-warning/40 bg-warning/15 text-warning-foreground text-[10px] font-semibold uppercase tracking-wider">
-                <AlertTriangle className="size-3" /> Extended
-              </span>
-            )}
-          </div>
-          <h1 className="font-display text-2xl lg:text-3xl font-semibold tracking-tight mb-2 text-balance">
-            {t.title}
-          </h1>
-          <p className="text-muted-foreground leading-relaxed mb-5">{t.description}</p>
-
-          <div className="grid sm:grid-cols-2 gap-3 text-sm">
-            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-              <MapPin className="size-4 text-primary" /> {t.location}
-            </div>
-            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-              <Clock className="size-4 text-primary" /> Due{" "}
-              {new Date(t.deadline).toLocaleString("en-IN", {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 mt-5 items-center">
-            {status === "pending" && (
-              <Button
-                onClick={() => {
-                  updateTask(t.id, { status: "in_progress" });
-                  if (!online) enqueue({ kind: "status", label: `Started: ${t.title}` });
-                  toast({ title: online ? "Task started" : "Task started (offline)" });
-                }}
-                className="gap-1.5"
-              >
-                <Play className="size-4" /> Start Task
-              </Button>
-            )}
-            {status === "in_progress" && (
-              <Button
-                onClick={complete}
-                className="gap-1.5 bg-success hover:bg-success/90 text-success-foreground"
-              >
-                <CheckCircle2 className="size-4" /> Mark Complete
-              </Button>
-            )}
-            {status === "completed" && (
-              <div className="inline-flex items-center gap-2 text-success font-medium text-sm">
-                <CheckCircle2 className="size-4" /> Completed · proof attached
-              </div>
-            )}
-            {!online && status !== "completed" && (
-              <span className="inline-flex items-center gap-1 text-xs text-warning-foreground/80">
-                <CloudOff className="size-3" /> Will sync when online
-              </span>
-            )}
-          </div>
+      <Topbar title="Task detail" subtitle={activeMembership?.organization_name ?? "Organisation task"} />
+      <div className="mx-auto max-w-5xl space-y-5 p-4 lg:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/app/tasks"><ArrowLeft className="mr-2 size-4" /> Back to task board</Link>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void load(true)} disabled={refreshing}>
+            <RefreshCw className={`mr-2 size-3.5 ${refreshing ? "animate-spin" : ""}`} /> Refresh
+          </Button>
         </div>
 
-        {/* Smart timeline header (field role) */}
-        {role === "field" && status !== "completed" && (
-          <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card space-y-4">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Sparkles className="size-4 text-primary" />
-                  <h2 className="font-display font-semibold">Smart timeline</h2>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  Suggested · <span className="font-medium text-foreground">{defHours}h</span>{" "}
-                  · You have{" "}
-                  <span className="font-medium text-foreground">{pendingCount}</span>{" "}
-                  pending {pendingCount === 1 ? "task" : "tasks"} today
-                </div>
-              </div>
-              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!canAdjust}
-                    className="gap-1.5"
-                    title={canAdjust ? "Adjust deadline" : "Need >1 pending tasks to adjust"}
-                  >
-                    <CalendarIcon className="size-3.5" />
-                    Adjust deadline
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-3 bg-popover" align="end">
-                  <Calendar
-                    mode="single"
-                    selected={pendingDate}
-                    onSelect={setPendingDate}
-                    disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                    initialFocus
-                    className="pointer-events-auto"
-                  />
-                  <div className="flex items-center gap-2 mt-3">
-                    <Input
-                      type="time"
-                      value={pendingTime}
-                      onChange={(e) => setPendingTime(e.target.value)}
-                      className="h-9"
-                    />
-                    <Button size="sm" onClick={saveDeadline}>
-                      Save
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-            {!canAdjust && (
-              <div className="text-xs text-muted-foreground">
-                Adjusting is enabled when you have more than one pending task.
-              </div>
-            )}
-            {t.extendedTimeline && <ExtendedTimelineBanner defaultHours={defHours} />}
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-card lg:p-7">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">{statusLabels[task.status]}</Badge>
+            <Badge variant="outline">{priorityLabels[task.priority] ?? task.priority}</Badge>
+            {task.status === "submitted" && <Badge>Submitted for review</Badge>}
           </div>
-        )}
+          <h1 className="mt-3 font-display text-2xl font-semibold tracking-tight lg:text-3xl">{task.title}</h1>
+          {task.description ? (
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{task.description}</p>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground">No additional instructions were added to this task.</p>
+          )}
 
-        {/* Manager reassign panel */}
-        {isManager && t.extendedTimeline && status !== "completed" && (
-          <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
-            <div className="flex items-center gap-2 mb-1">
-              <Users className="size-4 text-primary" />
-              <h2 className="font-display font-semibold">Reassign for faster turnaround</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Assigned to</div>
+              <div className="mt-1 text-sm font-medium">{task.assignee_name || "Unassigned"}</div>
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              {t.assignee}'s timeline is beyond the recommended {defHours}h. Teammates with
-              lower workload are highlighted below.
-            </p>
-            <div className="space-y-2">
-              {alternates.map((alt, idx) => (
-                <div
-                  key={alt.employee.id}
-                  className={cn(
-                    "flex items-center gap-3 p-3 rounded-lg border",
-                    idx === 0 ? "border-success/40 bg-success/5" : "border-border",
-                  )}
-                >
-                  <div className="size-9 rounded-full gradient-primary text-primary-foreground grid place-items-center font-display font-semibold text-sm shrink-0">
-                    {alt.employee.avatar}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-sm truncate">{alt.employee.name}</span>
-                      <WorkloadPill band={alt.band} showLabel={false} />
-                      {idx === 0 && (
-                        <span className="text-[10px] font-semibold text-success uppercase tracking-wider">
-                          Recommended
-                        </span>
-                      )}
+            <div className="rounded-lg bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Created by</div>
+              <div className="mt-1 text-sm font-medium">{task.created_by_name || "Team member"}</div>
+            </div>
+            <div className="rounded-lg bg-muted/40 p-3">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground"><CalendarClock className="size-3.5" /> Due date</div>
+              <div className="mt-1 text-sm font-medium">{dateTime(task.due_at)}</div>
+            </div>
+            <div className="rounded-lg bg-muted/40 p-3">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground"><Clock3 className="size-3.5" /> Created</div>
+              <div className="mt-1 text-sm font-medium">{dateTime(task.created_at)}</div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-5">
+            {employeeAction && employeeAction !== "submitted" && (
+              <Button disabled={actionBusy} onClick={() => void handleTransition(employeeAction)}>
+                {actionBusy ? <Loader2 className="mr-2 size-4 animate-spin" /> : employeeAction === "accepted" ? <Check className="mr-2 size-4" /> : <Play className="mr-2 size-4" />}
+                {employeeAction === "accepted" ? "Accept task" : "Start / resume task"}
+              </Button>
+            )}
+            {employeeAction === "submitted" && (
+              <Button disabled={actionBusy || detail.attachments.length === 0} onClick={() => void handleTransition("submitted")}>
+                {actionBusy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                Submit for manager review
+              </Button>
+            )}
+            {canManage && task.status === "submitted" && (
+              <>
+                <Button disabled={actionBusy} onClick={() => void handleTransition("approved")} className="bg-success text-success-foreground hover:bg-success/90">
+                  {actionBusy ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />}
+                  Approve task
+                </Button>
+                <Button variant="outline" disabled={actionBusy} onClick={() => void handleTransition("rejected")}>
+                  <X className="mr-2 size-4" /> Request changes
+                </Button>
+              </>
+            )}
+            {canManage && !isClosed && (
+              <Button variant="ghost" disabled={actionBusy} onClick={() => void handleTransition("cancelled")}>Cancel task</Button>
+            )}
+            {task.status === "approved" && (
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-success"><ShieldCheck className="size-4" /> Completed and approved</span>
+            )}
+            {task.status === "submitted" && (
+              <span className="self-center text-xs text-muted-foreground">Submitted {dateTime(task.submitted_at)} · Awaiting manager review</span>
+            )}
+            {employeeAction === "submitted" && detail.attachments.length === 0 && (
+              <span className="self-center text-xs text-muted-foreground">Attach proof of work before submitting.</span>
+            )}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-card lg:p-7">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-display font-semibold"><Paperclip className="size-4 text-primary" /> Proof of work</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Private task attachments · JPG, PNG, WebP or PDF · Maximum 10 MB each</p>
+            </div>
+            <Badge variant="secondary">{detail.attachments.length} attached</Badge>
+          </div>
+
+          {detail.attachments.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-border p-6 text-center">
+              <FileText className="mx-auto mb-2 size-6 text-muted-foreground" />
+              <p className="text-sm font-medium">No proof attached yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">Employees can attach photos or documents that demonstrate the work completed.</p>
+            </div>
+          ) : (
+            <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+              {detail.attachments.map((attachment) => (
+                <div key={attachment.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted"><FileText className="size-4 text-primary" /></div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{attachment.file_name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {attachment.uploader_name} · {(attachment.size_bytes / 1024 / 1024).toFixed(2)} MB · {dateTime(attachment.created_at)}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {alt.pendingCount} pending · free in ~{Math.round(alt.etaHours)}h
-                    </div>
                   </div>
-                  <Button
-                    size="sm"
-                    variant={idx === 0 ? "default" : "outline"}
-                    onClick={() => handleReassign(alt.employee.id)}
-                  >
-                    Reassign
+                  <Button size="sm" variant="outline" disabled={openingAttachment === attachment.id} onClick={() => void handleOpenAttachment(attachment.id, attachment.storage_path)}>
+                    {openingAttachment === attachment.id ? <Loader2 className="mr-2 size-3.5 animate-spin" /> : <Download className="mr-2 size-3.5" />}
+                    Open
                   </Button>
                 </div>
               ))}
-              {alternates.length === 0 && (
-                <div className="text-sm text-muted-foreground py-4 text-center">
-                  No alternates available.
-                </div>
-              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Reminder audit trail */}
-        <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
-          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <AlarmClock className="size-4 text-primary" />
-              <h2 className="font-display font-semibold">Reminder audit trail</h2>
+          {canUploadProof && (
+            <div className="mt-4 flex flex-col gap-3 rounded-lg bg-muted/40 p-4 sm:flex-row sm:items-end">
+              <div className="min-w-0 flex-1">
+                <label htmlFor="task-proof-file" className="mb-1.5 block text-sm font-medium">Add evidence</label>
+                <Input
+                  id="task-proof-file"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                />
+                {selectedFile && <p className="mt-1 text-xs text-muted-foreground">Selected: {selectedFile.name}</p>}
+              </div>
+              <Button onClick={() => void handleUpload()} disabled={!selectedFile || uploading}>
+                {uploading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Upload className="mr-2 size-4" />}
+                Upload proof
+              </Button>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {(t.reminderLog?.length ?? 0)} {((t.reminderLog?.length ?? 0) === 1) ? "event" : "events"}
-            </span>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-card lg:p-7">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-display font-semibold">Task activity</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Server-recorded status history and comments.</p>
+            </div>
+            <Badge variant="secondary">{detail.history.length} events</Badge>
           </div>
-          {(t.reminderLog?.length ?? 0) === 0 ? (
-            <div className="text-sm text-muted-foreground py-3">
-              No reminders have fired yet.
-              {t.reminderAt && (
-                <> Next scheduled for{" "}
-                  <span className="font-medium text-foreground">
-                    {new Date(t.reminderAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                  </span>.
-                </>
-              )}
-            </div>
+          {detail.history.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">No status history has been recorded yet.</p>
           ) : (
-            <ol className="space-y-2">
-              {[...(t.reminderLog ?? [])]
-                .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-                .map((e) => (
-                  <li
-                    key={e.id}
-                    className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/40 text-sm"
-                  >
-                    <span
-                      className={cn(
-                        "mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider shrink-0",
-                        e.type === "acknowledged"
-                          ? "bg-success/15 text-success border border-success/30"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30",
-                      )}
-                    >
-                      {e.type === "acknowledged" ? (
-                        <CheckCircle2 className="size-3" />
-                      ) : (
-                        <AlarmClock className="size-3" />
-                      )}
-                      {e.type}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium">
-                        {e.type === "acknowledged"
-                          ? `${e.actor ?? "Viewer"} acknowledged the reminder`
-                          : `Reminder shown to ${e.actor ?? "viewer"}`}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(e.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                        {e.reminderAt && (
-                          <>
-                            {" · scheduled for "}
-                            {new Date(e.reminderAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                          </>
-                        )}
-                      </div>
+            <ol className="mt-4 space-y-3">
+              {detail.history.map((entry) => (
+                <li key={entry.id} className="flex gap-3">
+                  <div className="mt-1 grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><CheckCircle2 className="size-3.5" /></div>
+                  <div className="min-w-0 flex-1 rounded-lg bg-muted/40 p-3">
+                    <div className="text-sm font-medium">
+                      {entry.from_status ? `${statusLabels[entry.from_status]} → ` : ""}
+                      {statusLabels[entry.to_status] ?? entry.to_status}
                     </div>
-                  </li>
-                ))}
+                    <div className="mt-1 text-xs text-muted-foreground">{entry.actor_name} · {dateTime(entry.created_at)}</div>
+                    {entry.note && <p className="mt-2 text-sm">{entry.note}</p>}
+                  </div>
+                </li>
+              ))}
             </ol>
           )}
-        </div>
+        </section>
 
-        <div className="bg-card border border-border rounded-2xl p-5 lg:p-7 shadow-card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-semibold">Proof of work</h2>
-            <span className="text-xs text-muted-foreground">Geo + timestamp captured</span>
-          </div>
-          {hasProof ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="aspect-square rounded-lg gradient-surface border border-border grid place-items-center relative">
-                <ImageIcon className="size-8 text-muted-foreground" />
-                {proofPending && (
-                  <span className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-warning/40 bg-warning/15 text-warning-foreground text-[9px] font-semibold uppercase tracking-wider">
-                    <CloudOff className="size-2.5" /> Pending
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground sm:col-span-2 self-end">
-                {proofPending
-                  ? "Captured offline · will upload when reconnected"
-                  : "Captured 2026-04-21 17:45 · 19.1197° N, 72.9051° E"}
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={() => {
-                setHasProof(true);
-                if (!online) {
-                  setProofPending(true);
-                  enqueue({ kind: "proof", label: `Proof for ${t.title}` });
-                  toast({
-                    title: "Proof captured (offline)",
-                    description: "Will upload when you reconnect",
-                  });
-                } else {
-                  toast({
-                    title: "Proof uploaded",
-                    description: "Geo-tagged · 19.0596° N, 72.8295° E",
-                  });
-                }
-              }}
-              className="w-full py-10 border-2 border-dashed border-border rounded-xl hover:border-primary hover:bg-muted/40 transition-colors flex flex-col items-center gap-2 text-muted-foreground"
-            >
-              <Camera className="size-6" />
-              <span className="text-sm font-medium">Capture / upload proof</span>
-              <span className="text-xs">Photo or video, location auto-tagged</span>
-            </button>
-          )}
-        </div>
-
-        <div className="bg-card border border-border rounded-2xl shadow-card overflow-hidden">
-          <div className="px-5 lg:px-7 pt-5 pb-3 border-b border-border flex items-start justify-between gap-3">
+        <section className="rounded-2xl border border-border bg-card p-5 shadow-card lg:p-7">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-display font-semibold">Task chat</h2>
-              <p className="text-xs text-muted-foreground">All messages tied to this task</p>
+              <h2 className="flex items-center gap-2 font-display font-semibold"><MessageSquare className="size-4 text-primary" /> Task discussion</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Comments are visible to the task assignee and authorised organisation managers.</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                nav(`/app/chat?thread=${t.sourceThreadId ?? `task-${t.id}`}`)
-              }
-              className="gap-1.5 shrink-0"
-            >
-              <MessageSquare className="size-3.5" /> Open in Messages
-            </Button>
+            <Badge variant="secondary">{detail.comments.length} comments</Badge>
           </div>
-          <div className="p-5 lg:p-7 space-y-3 max-h-72 overflow-y-auto">
-            {thread.length === 0 && (
-              <div className="text-sm text-muted-foreground text-center py-6">
-                No messages yet.
-              </div>
-            )}
-            {thread.map((m) => {
-              const mine = m.from === "You";
-              const isSystem = m.from === "System";
-              if (isSystem) {
-                return (
-                  <div key={m.id} className="flex justify-center">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-accent/40 bg-accent/15 text-accent-foreground text-xs">
-                      <Sparkles className="size-3" /> {m.text}
-                    </span>
+          {detail.comments.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">No comments yet. Use the discussion to clarify instructions or give feedback.</div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {detail.comments.map((item) => (
+                <article key={item.id} className="rounded-lg bg-muted/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold">{item.author_name}</span>
+                    <span className="text-xs text-muted-foreground">{dateTime(item.created_at)}</span>
                   </div>
-                );
-              }
-              return (
-                <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[78%] rounded-2xl px-3.5 py-2 text-sm ${
-                      mine
-                        ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted rounded-bl-sm"
-                    }`}
-                  >
-                    {!mine && (
-                      <div className="text-[10px] font-semibold uppercase tracking-wider opacity-60 mb-0.5">
-                        {m.from}
-                      </div>
-                    )}
-                    {m.text}
-                    <div
-                      className={`text-[10px] mt-1 ${
-                        mine ? "text-primary-foreground/60" : "text-muted-foreground"
-                      }`}
-                    >
-                      {m.time}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="border-t border-border p-3 flex gap-2">
-            <Input
-              value={msg}
-              onChange={(e) => setMsg(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Type a message…"
-              className="bg-background"
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{item.body}</p>
+                </article>
+              ))}
+            </div>
+          )}
+          <form onSubmit={(event) => void handleComment(event)} className="mt-4 space-y-3 border-t border-border pt-4">
+            <Textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              placeholder="Write an update, ask a question or provide manager feedback…"
+              maxLength={10000}
+              rows={3}
             />
-            <Button onClick={send} size="icon">
-              <Send className="size-4" />
-            </Button>
-          </div>
-        </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={!comment.trim() || sendingComment}>
+                {sendingComment ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Send className="mr-2 size-4" />}
+                Add comment
+              </Button>
+            </div>
+          </form>
+        </section>
       </div>
     </>
   );
