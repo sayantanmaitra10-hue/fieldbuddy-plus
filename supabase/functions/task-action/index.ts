@@ -135,6 +135,23 @@ Deno.serve(async (request) => {
   }
   if (!allowed) return json({ error: "This task status transition is not permitted" }, 403);
 
+  // A task cannot be submitted for manager review until proof of work has
+  // been uploaded to the private, organisation-scoped task-proof bucket.
+  if (nextStatus === "submitted") {
+    const { count, error: attachmentError } = await db
+      .from("task_attachments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("task_id", task.id);
+
+    if (attachmentError) {
+      return json({ error: "Unable to verify task proof attachments" }, 500);
+    }
+    if (!count || count < 1) {
+      return json({ error: "Attach at least one proof-of-work file before submitting this task for review." }, 400);
+    }
+  }
+
   const { data: updatedTask, error: transitionError } = await db.rpc("apply_task_transition", {
     p_organization_id: organizationId,
     p_task_id: task.id,
