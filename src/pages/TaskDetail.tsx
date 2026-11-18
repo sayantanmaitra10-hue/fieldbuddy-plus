@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Topbar } from "@/components/layout/Topbar";
 import { useAuth } from "@/context/AuthContext";
@@ -186,7 +186,7 @@ const TaskDetail = () => {
     }
   }
 
-  async function handleComment(event: React.FormEvent<HTMLFormElement>) {
+  async function handleComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!organizationId || !detail || !comment.trim()) return;
     setSendingComment(true);
