@@ -32,6 +32,11 @@ jobs:
         with:
           ref: feat/backend-foundation
 
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
       - name: Validate staging target and explicit confirmation
         shell: bash
         run: |
