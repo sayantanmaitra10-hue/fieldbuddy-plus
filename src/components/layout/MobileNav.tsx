@@ -10,6 +10,8 @@ const fieldNav: NavItem[] = [
   { to: "/app/chat", label: "Chat", icon: MessageSquare },
 ];
 const managerNav: NavItem[] = [
+  // Managers and admins can also record their own attendance.
+  { to: "/app", label: "Today", icon: MapPin, end: true },
   { to: "/app/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/app/team", label: "Team", icon: Users },
   { to: "/app/tasks", label: "Tasks", icon: ListChecks },
