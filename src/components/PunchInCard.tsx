@@ -41,8 +41,10 @@ const validationMessage = (status: string) => {
 
 export const PunchInCard = () => {
   const [state, setState] = useState<PunchState>("idle");
-  const [location, setLocation] = useState("Location permission required");
+  const [location, setLocation] = useState("Location not checked yet");
   const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [checkingLocation, setCheckingLocation] = useState(false);
+  const [gpsReady, setGpsReady] = useState(false);
   const [time, setTime] = useState("");
   const [statusReady, setStatusReady] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
@@ -118,6 +120,39 @@ export const PunchInCard = () => {
       window.removeEventListener("online", handleOnline);
     };
   }, [organizationId, retryToken]);
+
+  // Read the browser's current GPS position without creating an attendance event.
+  // This gives admins/employees a safe way to verify location permission and accuracy.
+  const handleCheckLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsReady(false);
+      setLocationMessage("Location services are not available on this device.");
+      return;
+    }
+
+    setCheckingLocation(true);
+    setLocationMessage(null);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coords = position.coords;
+        setLocation(`${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} · ±${Math.round(coords.accuracy)} m`);
+        setGpsReady(true);
+        setCheckingLocation(false);
+        setLocationMessage(null);
+      },
+      (error) => {
+        setGpsReady(false);
+        const message = error.code === error.PERMISSION_DENIED
+          ? "Location access is blocked. Allow it in your browser's site settings, then check again."
+          : error.code === error.POSITION_UNAVAILABLE
+            ? "Your current location could not be determined. Move to an open area and try again."
+            : "Location check timed out. Try again where GPS reception is stronger.";
+        setLocationMessage(message);
+        setCheckingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
+    );
+  };
 
   const handlePunch = () => {
     if (!statusReady || !organizationId) return;
@@ -235,6 +270,22 @@ export const PunchInCard = () => {
           <div className="flex items-center gap-2 text-sm text-primary-foreground/75">
             <MapPin className="size-4 shrink-0" />
             <span className="truncate">{location}</span>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleCheckLocation}
+              disabled={checkingLocation || !organizationId}
+              className="rounded-lg border border-primary-foreground/30 bg-primary-foreground/10 px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary-foreground/15 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {checkingLocation ? "Checking GPS…" : "Check GPS (no attendance)"}
+            </button>
+            {gpsReady && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-primary-foreground/80">
+                <CheckCircle2 className="size-3.5" />
+                GPS available · no attendance recorded
+              </span>
+            )}
           </div>
           {locationMessage && (
             <p role="status" className="mt-3 flex items-start gap-2 text-sm text-primary-foreground/80">
