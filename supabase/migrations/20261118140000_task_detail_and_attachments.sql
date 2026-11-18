@@ -311,8 +311,9 @@ begin
   end if;
 
   if p_file_name is null or length(trim(p_file_name)) < 1 or length(p_file_name) > 255
+     or p_content_type is null
      or p_content_type not in ('image/jpeg','image/png','image/webp','application/pdf')
-     or p_size_bytes < 1 or p_size_bytes > 10485760 then
+     or p_size_bytes is null or p_size_bytes < 1 or p_size_bytes > 10485760 then
     raise exception 'INVALID_ATTACHMENT' using errcode = '22023';
   end if;
 
