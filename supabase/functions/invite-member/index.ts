@@ -5,7 +5,7 @@ const configuredAppOrigin = (() => {
   if (!raw) return null;
   try {
     const parsed = new URL(raw);
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") return null;
+    if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && parsed.hostname === "localhost")) return null;
     return parsed.origin;
   } catch {
     return null;
