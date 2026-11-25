@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { validateDisplayName, validatePasswordPair } from "@/lib/auth-onboarding";
@@ -12,6 +12,12 @@ export default function SetPassword() {
     ? user.user_metadata.display_name
     : "";
   const [displayName, setDisplayName] = useState(suggestedName);
+
+  // AuthProvider restores the invitation session asynchronously. The page can
+  // mount before user metadata is available, so prefill once it arrives.
+  useEffect(() => {
+    if (suggestedName) setDisplayName((current) => current || suggestedName);
+  }, [suggestedName]);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
@@ -91,7 +97,7 @@ export default function SetPassword() {
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
           {flow === "invite" && (
             <label className="block space-y-1.5 text-sm font-medium">
-              Username / display name
+              Employee name (shown to your team)
               <input
                 required
                 type="text"
