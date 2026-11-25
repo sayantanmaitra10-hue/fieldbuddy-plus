@@ -73,7 +73,7 @@ describe("SetPassword onboarding", () => {
   it("rejects mismatched password confirmation", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/^Employee name \\(shown to your team\\)/), { target: { value: "Employee Name" } });
+    fireEvent.change(screen.getByLabelText(/^Employee name \(shown to your team\)/), { target: { value: "Employee Name" } });
     fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "different-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
@@ -85,7 +85,7 @@ describe("SetPassword onboarding", () => {
   it("requires a name for an invited employee before saving account details", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/^Employee name \\(shown to your team\\)/), { target: { value: " " } });
+    fireEvent.change(screen.getByLabelText(/^Employee name \(shown to your team\)/), { target: { value: " " } });
     fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
@@ -97,7 +97,7 @@ describe("SetPassword onboarding", () => {
   it("saves the employee-selected name and password, refreshes membership, and opens the workspace", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/^Employee name \\(shown to your team\\)/), { target: { value: "Employee Chosen Name" } });
+    fireEvent.change(screen.getByLabelText(/^Employee name \(shown to your team\)/), { target: { value: "Employee Chosen Name" } });
     fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
@@ -127,7 +127,7 @@ describe("SetPassword onboarding", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/^Employee name \\(shown to your team\\)/), { target: { value: "Employee Name" } });
+    fireEvent.change(screen.getByLabelText(/^Employee name \(shown to your team\)/), { target: { value: "Employee Name" } });
     fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
