@@ -31,7 +31,7 @@ describe("Organization Admin", () => {
   it("shows the directory and membership status totals", async () => {
     renderAdmin();
     expect(await screen.findByText("Ananya Sen")).toBeInTheDocument();
-    expect(screen.getByText("Invitation pending")).toBeInTheDocument();
+    expect(screen.getAllByText("Invitation pending")).toHaveLength(2);
     expect(screen.getByText("Total memberships").parentElement).toHaveTextContent("2");
     expect(screen.getByText("Invitations pending").parentElement).toHaveTextContent("1");
   });
