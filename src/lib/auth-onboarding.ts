@@ -34,12 +34,19 @@ export function getAuthCallbackUrl(origin: string, flow: "invite" | "recovery" |
   return url.toString();
 }
 
+export function validateDisplayName(displayName: string): string | null {
+  const normalized = displayName.trim();
+  if (!normalized) return "Enter the name you want your team to see.";
+  if (normalized.length < 2) return "Your name must contain at least 2 characters.";
+  if (normalized.length > 120) return "Your name is too long.";
+  return null;
+}
+
 export function validatePasswordPair(password: string, confirmation: string): string | null {
   if (password.length < 8) return "Your password must contain at least 8 characters.";
   if (password !== confirmation) return "The passwords do not match.";
   return null;
 }
-
 
 /** True only when the return URL contains a one-time Supabase auth credential. */
 export function hasAuthCallbackCredential(location: Pick<Location, "search" | "hash">): boolean {
