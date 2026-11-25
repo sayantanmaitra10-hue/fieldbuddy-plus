@@ -13,6 +13,8 @@ This is a manual integration test plan. Passing GitHub CI does not replace these
 - [ ] Confirm Supabase Authentication → URL Configuration allows the deployed origin's `/auth/callback` path.
 - [ ] Confirm the Edge Function secret `APP_ORIGIN` is the exact deployed app origin.
 - [ ] Confirm `INVITE_REDIRECT_URL` points to the same app origin. The current invite function normalizes it to `/auth/callback?flow=invite`.
+- [ ] Check Supabase Auth → Email Templates → Invite user. The action link should use Supabase's `{{ .ConfirmationURL }}` (or a correctly constructed `{{ .RedirectTo }}` link), not a hard-coded Site URL that bypasses the redirect parameter.
+- [ ] Confirm email delivery is enabled for the test inbox. Supabase's default SMTP service only delivers to addresses that belong to the project's organization team; for an external employee mailbox, configure a custom SMTP provider before testing.
 - [ ] Deploy the reviewed `invite-member` function to this staging project after the authentication branch is merged into `feat/backend-foundation`.
 - [ ] Use a mailbox that can be opened during the test. Do not reuse an email that already has a Supabase Auth account.
 
