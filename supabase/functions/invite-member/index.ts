@@ -1,7 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const configuredAppOrigin = (() => {
+  const raw = Deno.env.get("APP_ORIGIN")?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+})();
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("APP_ORIGIN") ?? "*",
+  ...(configuredAppOrigin ? { "Access-Control-Allow-Origin": configuredAppOrigin, "Vary": "Origin" } : {}),
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -14,9 +26,44 @@ const json = (body: unknown, status = 200) =>
 
 const allowedRoles = new Set(["hr_admin", "manager", "supervisor", "field_employee"]);
 
+function getInvitationRedirectUrl(): string {
+  const configuredRedirect = Deno.env.get("INVITE_REDIRECT_URL")?.trim();
+  if (!configuredAppOrigin || !configuredRedirect) {
+    throw new Error("APP_ORIGIN and INVITE_REDIRECT_URL must be configured before invitations can be sent.");
+  }
+
+  const redirect = new URL(configuredRedirect);
+  if (redirect.origin !== configuredAppOrigin) {
+    throw new Error("INVITE_REDIRECT_URL must use the same origin as APP_ORIGIN.");
+  }
+
+  // Always land invitees on the app's first-party callback/password setup route.
+  // This avoids silently sending them to the landing page or Lovable editor.
+  redirect.pathname = "/auth/callback";
+  redirect.search = "?flow=invite";
+  redirect.hash = "";
+  return redirect.toString();
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  if (!configuredAppOrigin) {
+    return json({ error: "The invitation service is not configured. Ask an administrator to verify APP_ORIGIN." }, 500);
+  }
+  const requestOrigin = request.headers.get("Origin");
+  if (requestOrigin && requestOrigin !== configuredAppOrigin) {
+    return json({ error: "This application origin is not allowed to send invitations." }, 403);
+  }
+
+  let redirectTo: string;
+  try {
+    redirectTo = getInvitationRedirectUrl();
+  } catch (cause) {
+    console.error("Invitation redirect configuration is invalid", cause);
+    return json({ error: "The invitation callback is not configured correctly. Ask an administrator to verify the application URL settings." }, 500);
+  }
 
   const authorization = request.headers.get("Authorization");
   if (!authorization?.startsWith("Bearer ")) return json({ error: "Authentication required" }, 401);
@@ -71,26 +118,18 @@ Deno.serve(async (request) => {
     return json({ error: "You are not authorized to invite members to this organization" }, 403);
   }
 
-  const { data: existing } = await adminClient
-    .from("organization_members")
-    .select("id,status")
-    .eq("organization_id", organizationId)
-    .eq("user_id", actorId)
-    .maybeSingle();
-
-  if (existing) {
-    // No duplicate membership can be created for the same organization/user pair.
-  }
-
   const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
     data: displayName ? { display_name: displayName } : {},
-    redirectTo: Deno.env.get("INVITE_REDIRECT_URL"),
+    redirectTo,
   });
 
   if (inviteError || !inviteData.user) {
+    const existingAccount = /already registered|already exists|user already|duplicate/i.test(inviteError?.message ?? "");
     return json({
-      error: inviteError?.message ?? "Invitation could not be created",
-      hint: "If this email already has a FieldBuddy account, ask an administrator to link the existing account through the approved provisioning process.",
+      code: existingAccount ? "USER_ALREADY_EXISTS" : "INVITE_FAILED",
+      error: existingAccount
+        ? "This email already has a FieldBuddy authentication account. The employee must use that account, or an administrator must follow the existing-account provisioning process."
+        : "The invitation could not be sent. Verify the email address and email-provider configuration, then try again.",
     }, 409);
   }
 
@@ -107,11 +146,13 @@ Deno.serve(async (request) => {
     .single();
 
   if (insertError) {
-    // The invited auth account remains valid; surface a safe, actionable error.
-    return json({ error: "Invitation was sent, but organization membership could not be created. Contact an administrator.", detail: insertError.message }, 500);
+    console.error("Invitation sent but organization membership insert failed", insertError);
+    return json({
+      error: "The invitation email was sent, but the organization membership could not be saved. Do not send another invitation until an administrator checks the team directory.",
+    }, 500);
   }
 
-  await adminClient.from("audit_logs").insert({
+  const { error: auditError } = await adminClient.from("audit_logs").insert({
     organization_id: organizationId,
     actor_id: actorId,
     action: "member.invited",
@@ -119,6 +160,7 @@ Deno.serve(async (request) => {
     entity_id: membership.id,
     metadata: { email, role },
   });
+  if (auditError) console.error("Unable to record member invitation audit event", auditError);
 
   return json({ membership, message: "Invitation sent" }, 201);
 });
