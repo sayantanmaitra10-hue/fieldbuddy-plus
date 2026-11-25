@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/auth-onboarding";
 
 export type OrganizationRole = "org_admin" | "hr_admin" | "manager" | "supervisor" | "field_employee";
 
@@ -31,6 +32,8 @@ interface AuthContextValue {
   activeMembership: OrganizationMembership | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshMemberships: () => Promise<void>;
   setActiveOrganization: (organizationId: string) => void;
@@ -42,9 +45,6 @@ const ACTIVE_ORG_KEY = "fieldbuddy:active-organization";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  // Track the authenticated user separately from token refreshes. Supabase can
-  // emit TOKEN_REFRESHED when a background tab becomes active again; that must
-  // not blank the protected workspace for a user whose identity has not changed.
   const authUserIdRef = useRef<string | null>(null);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
@@ -99,19 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUserId = nextSession?.user.id ?? null;
       const identityChanged = authUserIdRef.current !== nextUserId;
       authUserIdRef.current = nextUserId;
-
       setSession(nextSession);
 
       if (!nextSession) {
-        // A sign-out must immediately clear tenant membership state.
         setMemberships([]);
         setMembershipsLoading(false);
       } else if (identityChanged) {
-        // Initial session restoration or a genuine account switch requires a
-        // fresh membership lookup. Same-user token refreshes do not.
         setMembershipsLoading(true);
       }
-
       setLoading(false);
     });
 
@@ -144,7 +139,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: { data: { display_name: displayName.trim() } },
+      options: {
+        data: { display_name: displayName.trim() },
+        emailRedirectTo: getAuthCallbackUrl(window.location.origin, "signup"),
+      },
+    });
+    if (error) throw error;
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const redirectTo = getAuthCallbackUrl(window.location.origin, "recovery");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo,
+    });
+    if (error) throw error;
+  }, []);
+
+  const updatePassword = useCallback(async (password: string, displayName?: string) => {
+    const normalizedDisplayName = displayName?.trim();
+
+    // An invited employee chooses/confirms the name shown in the organization.
+    // Keep the profile row and Supabase Auth metadata aligned. Password recovery
+    // calls this method without a display name and changes only the password.
+    if (normalizedDisplayName) {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("Your invitation session has expired. Open the latest invitation email again.");
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .update({ display_name: normalizedDisplayName })
+        .eq("id", userData.user.id)
+        .select("id")
+        .maybeSingle();
+
+      if (profileError) throw new Error("Your name could not be saved: " + profileError.message);
+      if (!profile) throw new Error("Your employee profile is not ready yet. Please reopen the invitation link or contact your administrator.");
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password,
+      ...(normalizedDisplayName ? { data: { display_name: normalizedDisplayName } } : {}),
     });
     if (error) throw error;
   }, []);
@@ -185,12 +220,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activeMembership,
     signIn,
     signUp,
+    requestPasswordReset,
+    updatePassword,
     signOut,
     refreshMemberships,
     setActiveOrganization,
   }), [
     session, loading, membershipsLoading, memberships, activeMembership,
-    signIn, signUp, signOut, refreshMemberships, setActiveOrganization,
+    signIn, signUp, requestPasswordReset, updatePassword, signOut,
+    refreshMemberships, setActiveOrganization,
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -19,26 +19,39 @@ The workflow checks that the project reference matches the fixed staging project
 - `attendance-event`
 - `task-action`
 
-It does not apply migrations or write application data. It uses the unmerged `feat/backend-foundation` source branch intentionally; the code is still under review and is being deployed only to staging.
+It does not apply database migrations or write application data. It uses the unmerged `feat/backend-foundation` source branch intentionally; the code is still under review and is being deployed only to staging.
 
 ## Runtime configuration
 
-Supabase provides project-level runtime variables including `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to hosted Edge Functions. The code currently reads the legacy single-key variables. Supabase's current docs also expose `SUPABASE_PUBLISHABLE_KEYS` and `SUPABASE_SECRET_KEYS`; migrating the functions to the newer key format should be done as a separately tested hardening task.
+Supabase provides project-level runtime variables including `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to hosted Edge Functions.
 
 Custom settings used by the functions:
 
-- `APP_ORIGIN`: the exact web-app origin. Set this in Supabase **Edge Functions → Secrets** before opening the app to browser clients. Current source falls back to `*` when unset, which is acceptable only for an isolated staging test and must be replaced with a specific origin before production.
-- `INVITE_REDIRECT_URL`: the exact sign-in/accept-invitation URL for the deployed app. Configure it before testing invitation emails so users return to the correct app route.
+- `APP_ORIGIN`: the exact HTTPS origin of the deployed web application, without a path (for example, `https://fieldbuddy.example`). The invitation function uses this value for a strict CORS origin check.
+- `INVITE_REDIRECT_URL`: the deployed web-app base URL. The function normalizes this value to `/auth/callback?flow=invite`, so the existing base URL secret can be retained. The final callback URL must be included in Supabase Authentication → URL Configuration → Redirect URLs.
 
 Never add a service-role or secret API key to any `VITE_*` variable or frontend bundle.
+
+## Authentication and onboarding
+
+The web application exposes:
+
+- `/auth/callback`: completes the Supabase redirect and routes invitations and recovery links to password setup.
+- `/set-password?flow=invite`: lets an invited employee establish their first password.
+- `/set-password?flow=recovery`: lets an existing employee choose a replacement password.
+- `/login`: provides sign-in, account creation, and a password-reset email request.
+
+Supabase redirects return a session in the URL fragment or exchange a PKCE code. The Supabase JavaScript client processes the callback URL; the callback page waits for session restoration before routing the user.
+
+For invitation and password recovery, add the deployed callback URL (or an appropriate path wildcard) to the Supabase redirect allow list. Do not send invitation emails until the deployed frontend includes these routes.
 
 ## Function responsibilities
 
 ### invite-member
 
-The function verifies the caller's JWT, checks that the caller is an active organization admin or HR admin, creates an Auth invitation, provisions an invited organization membership, and appends an audit event.
+The function verifies the caller's JWT, checks that the caller is an active organization admin or HR admin, validates the application origin and invitation callback configuration, creates an Auth invitation, provisions an invited organization membership, and appends an audit event.
 
-Known limitation: invitations for an email that already has an Auth account currently return a conflict. Existing-user linking needs a separately reviewed administrator workflow with stronger identity verification.
+Invitations for an email that already belongs to an Auth account currently return a conflict. Existing-user linking needs a separately reviewed administrator workflow with stronger identity verification.
 
 ### attendance-event
 

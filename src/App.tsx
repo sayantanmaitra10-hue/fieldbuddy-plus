@@ -26,6 +26,8 @@ import Admin from "./pages/Admin";
 import RemindersAudit from "./pages/RemindersAudit";
 import Login from "./pages/Login";
 import AccessPending from "./pages/AccessPending";
+import AuthCallback from "./pages/AuthCallback";
+import SetPassword from "./pages/SetPassword";
 
 const queryClient = new QueryClient();
 
@@ -37,32 +39,34 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <RoleProvider>
-          <SyncProvider>
-            <TasksProvider>
-              <AdminProvider>
-                <Routes>
-                  <Route path="/" element={<Index />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/access-pending" element={<AccessPending />} />
-                  <Route element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}>
-                    <Route path="/app" element={<FieldToday />} />
-                    <Route path="/app/tasks" element={<TasksPage />} />
-                    <Route path="/app/tasks/:id" element={<TaskDetail />} />
-                    <Route path="/app/chat" element={<ChatPage />} />
-                    <Route path="/app/dashboard" element={<RoleGuard allowed={["manager", "admin"]}><Dashboard /></RoleGuard>} />
-                    <Route path="/app/team" element={<RoleGuard allowed={["manager", "admin"]}><Team /></RoleGuard>} />
-                    <Route path="/app/team/:id" element={<RoleGuard allowed={["manager", "admin"]}><EmployeeDetail /></RoleGuard>} />
-                    <Route path="/app/alerts" element={<RoleGuard allowed={["manager", "admin"]}><Alerts /></RoleGuard>} />
-                    <Route path="/app/access" element={<RoleGuard allowed={["manager", "admin"]}><Access /></RoleGuard>} />
-                    <Route path="/app/admin" element={<RoleGuard allowed={["admin"]}><Admin /></RoleGuard>} />
-                    <Route path="/app/reminders" element={<RoleGuard allowed={["manager", "admin"]}><RemindersAudit /></RoleGuard>} />
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </AdminProvider>
-            </TasksProvider>
-          </SyncProvider>
-        </RoleProvider>
+            <SyncProvider>
+              <TasksProvider>
+                <AdminProvider>
+                  <Routes>
+                    <Route path="/" element={<Index />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/set-password" element={<SetPassword />} />
+                    <Route path="/access-pending" element={<AccessPending />} />
+                    <Route element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}>
+                      <Route path="/app" element={<FieldToday />} />
+                      <Route path="/app/tasks" element={<TasksPage />} />
+                      <Route path="/app/tasks/:id" element={<TaskDetail />} />
+                      <Route path="/app/chat" element={<ChatPage />} />
+                      <Route path="/app/dashboard" element={<RoleGuard allowed={["manager", "admin"]}><Dashboard /></RoleGuard>} />
+                      <Route path="/app/team" element={<RoleGuard allowed={["manager", "admin"]}><Team /></RoleGuard>} />
+                      <Route path="/app/team/:id" element={<RoleGuard allowed={["manager", "admin"]}><EmployeeDetail /></RoleGuard>} />
+                      <Route path="/app/alerts" element={<RoleGuard allowed={["manager", "admin"]}><Alerts /></RoleGuard>} />
+                      <Route path="/app/access" element={<RoleGuard allowed={["manager", "admin"]}><Access /></RoleGuard>} />
+                      <Route path="/app/admin" element={<RoleGuard allowed={["admin"]}><Admin /></RoleGuard>} />
+                      <Route path="/app/reminders" element={<RoleGuard allowed={["manager", "admin"]}><RemindersAudit /></RoleGuard>} />
+                    </Route>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </AdminProvider>
+              </TasksProvider>
+            </SyncProvider>
+          </RoleProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
