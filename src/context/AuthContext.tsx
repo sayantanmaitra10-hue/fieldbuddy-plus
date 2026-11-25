@@ -33,7 +33,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
-  updatePassword: (password: string) => Promise<void>;
+  updatePassword: (password: string, displayName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshMemberships: () => Promise<void>;
   setActiveOrganization: (organizationId: string) => void;
@@ -155,8 +155,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }, []);
 
-  const updatePassword = useCallback(async (password: string) => {
-    const { error } = await supabase.auth.updateUser({ password });
+  const updatePassword = useCallback(async (password: string, displayName?: string) => {
+    const normalizedDisplayName = displayName?.trim();
+
+    // An invited employee chooses/confirms the name shown in the organization.
+    // Keep the profile row and Supabase Auth metadata aligned. Password recovery
+    // calls this method without a display name and changes only the password.
+    if (normalizedDisplayName) {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!userData.user) throw new Error("Your invitation session has expired. Open the latest invitation email again.");
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .update({ display_name: normalizedDisplayName })
+        .eq("id", userData.user.id)
+        .select("id")
+        .maybeSingle();
+
+      if (profileError) throw new Error("Your name could not be saved: " + profileError.message);
+      if (!profile) throw new Error("Your employee profile is not ready yet. Please reopen the invitation link or contact your administrator.");
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password,
+      ...(normalizedDisplayName ? { data: { display_name: normalizedDisplayName } } : {}),
+    });
     if (error) throw error;
   }, []);
 
