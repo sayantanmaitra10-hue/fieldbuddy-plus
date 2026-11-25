@@ -3,6 +3,7 @@ import {
   getAuthCallbackError,
   getAuthCallbackUrl,
   getAuthFlowFromLocation,
+  hasAuthCallbackCredential,
   validatePasswordPair,
 } from "@/lib/auth-onboarding";
 
@@ -25,6 +26,12 @@ describe("authentication callback routing", () => {
 
   it("defaults to the normal app route for an untyped callback", () => {
     expect(getAuthFlowFromLocation({ search: "", hash: "#access_token=token" })).toBe("app");
+  });
+
+  it("requires a one-time credential before treating a URL as an auth callback", () => {
+    expect(hasAuthCallbackCredential({ search: "?flow=invite&code=pkce-code", hash: "" })).toBe(true);
+    expect(hasAuthCallbackCredential({ search: "?flow=invite", hash: "#access_token=access-token" })).toBe(true);
+    expect(hasAuthCallbackCredential({ search: "?flow=invite", hash: "" })).toBe(false);
   });
 
   it("builds absolute callback URLs for the requested auth flow", () => {
