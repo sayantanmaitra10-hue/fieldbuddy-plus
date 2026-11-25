@@ -2,7 +2,7 @@
 
 **Target test session:** Saturday, 28 November 2026  
 **Environment:** Confirmed Supabase staging project `jrmwkdputphprscfomxc`  
-**Purpose:** Verify an invited employee can accept an invitation, set a first password, sign in again, and reach their organization workspace.
+**Purpose:** Verify an invited employee can accept an invitation, verify their email, choose the name shown to the organization, set a first password, sign in again using their email and password, and reach their organization workspace.
 
 This is a manual integration test plan. Passing GitHub CI does not replace these checks.
 
@@ -23,7 +23,7 @@ This is a manual integration test plan. Passing GitHub CI does not replace these
 
 1. Sign in using the existing Organization Admin account.
 2. Open Organization Admin → Invite a team member.
-3. Enter a new, accessible email address, a display name, and the Field Employee role.
+3. Optionally enter a suggested employee name, then enter a new accessible email address and choose the organization role.
 4. Send the invitation.
 
 **Expected result**
@@ -39,33 +39,36 @@ This is a manual integration test plan. Passing GitHub CI does not replace these
 - 500 with origin/callback configuration message: inspect `APP_ORIGIN` and `INVITE_REDIRECT_URL`.
 - Email not delivered: inspect the Supabase Auth email provider, templates, rate limits, and Auth logs.
 
-## Test B — Accept the invitation and set the first password
+## Test B — Verify email, choose a name, and set the first password
 
 1. Open the latest invitation email.
-2. Click its action link in the same browser where the app is reachable.
+2. Click its action link.
 3. Confirm the browser lands on `/auth/callback?flow=invite` (the token/code may also appear in the URL).
-4. Confirm the app displays the Set up your password page.
-5. Enter a password of at least eight characters and confirm it.
+4. Confirm the app displays the **Complete your employee account** page.
+5. Confirm the login email is shown and the suggested name (if provided by the Admin) is pre-filled.
+6. Enter or edit the username/display name that should appear in the organization directory.
+7. Create a password of at least eight characters and confirm it.
+8. Select **Activate account**.
 
 **Expected result**
-- The callback establishes a Supabase session.
-- The password setup screen shows the invited employee's email.
-- Mismatched passwords are rejected before submission.
-- A valid password is saved.
-- The app routes to the employee workspace, or to Access Pending if organization membership has not activated yet.
-- The organization directory changes the employee status from `invited` to `active` after email confirmation.
+- The callback establishes a Supabase session after successful email verification.
+- The employee can set their own display name and password; the name is saved to the employee profile and Auth metadata.
+- Mismatched passwords and blank/too-short names are rejected before submission.
+- The app refreshes organization membership and routes to the employee workspace, or to Access Pending if membership access cannot be loaded.
+- The organization directory displays the name selected by the employee.
 
-## Test C — Sign in as the employee
+## Test C — Sign in again as the employee
 
-1. Keep the manager session open in the normal browser.
+1. Sign out of the employee session.
 2. Open a separate Incognito window.
 3. Navigate to the deployed application origin and open Sign in.
-4. Enter the employee email and newly created password.
+4. Enter the same employee email address used for the invitation and the password created in Test B.
 
 **Expected result**
-- The employee signs in without any Lovable editor login.
+- The employee signs in using **email address + self-created password**.
 - The employee reaches the Field Employee workspace.
 - The employee can see only tasks assigned to their organization membership.
+- The organization directory shows the employee-selected display name.
 
 ## Test D — Password recovery
 
@@ -75,11 +78,11 @@ This is a manual integration test plan. Passing GitHub CI does not replace these
 4. Open the latest reset email and follow the link.
 5. Confirm the app lands on `/auth/callback?flow=recovery`, then the Choose a new password page.
 6. Save a different password.
-7. Sign in again with the new password.
+7. Sign in again with the same email and the new password.
 
 **Expected result**
 - The recovery link establishes a recovery session.
-- The user can save a new password.
+- The user can save a new password without being asked to change their display name.
 - The new password works; the old password no longer does.
 
 ## Test E — Failure and session handling
@@ -95,11 +98,12 @@ This is a manual integration test plan. Passing GitHub CI does not replace these
 - [ ] Invitation-sent confirmation and team directory status.
 - [ ] Edge Function invocation result for `invite-member`.
 - [ ] Invitation email and callback destination (redact token query/hash values).
-- [ ] Set-password screen and successful completion.
-- [ ] Employee workspace after sign-in.
+- [ ] Employee account setup page showing the verified email, editable name field, and password fields.
+- [ ] Completed employee profile name in the team directory.
+- [ ] Employee workspace after signing in again with email and self-created password.
 - [ ] Password-reset completion.
 - [ ] Any browser console or Edge Function errors, with tokens and personal data redacted.
 
 ## Scope boundary
 
-GitHub CI currently validates dependency installation, TypeScript, the Vite build, unit tests, and Deno type-checking. It does not prove actual email delivery, click-through, password persistence, organization membership activation, or real two-account access. Those remain part of this Saturday's manual integration test.
+GitHub CI validates dependency installation, TypeScript, the Vite build, unit tests, and Deno type-checking. It does not prove actual email delivery, click-through, password persistence, organization membership activation, or real two-account access. Those remain part of the manual staging integration test.
