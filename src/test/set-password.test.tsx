@@ -42,15 +42,15 @@ describe("SetPassword onboarding", () => {
     renderSetPassword();
 
     expect(screen.getByText("Login email: employee@example.com")).toBeInTheDocument();
-    expect(screen.getByLabelText("Username / display name")).toHaveValue("Name entered by admin");
+    expect(screen.getByLabelText(/^Username \/ display name/)).toHaveValue("Name entered by admin");
     expect(screen.getByRole("button", { name: "Activate account" })).toBeInTheDocument();
   });
 
   it("rejects mismatched password confirmation", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText("Username / display name"), { target: { value: "Employee Name" } });
-    fireEvent.change(screen.getByLabelText("Create password"), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^Username \/ display name/), { target: { value: "Employee Name" } });
+    fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "different-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
 
@@ -61,8 +61,8 @@ describe("SetPassword onboarding", () => {
   it("requires a name for an invited employee before saving account details", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText("Username / display name"), { target: { value: " " } });
-    fireEvent.change(screen.getByLabelText("Create password"), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^Username \/ display name/), { target: { value: " " } });
+    fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
 
@@ -73,8 +73,8 @@ describe("SetPassword onboarding", () => {
   it("saves the employee-selected name and password, refreshes membership, and opens the workspace", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText("Username / display name"), { target: { value: "Employee Chosen Name" } });
-    fireEvent.change(screen.getByLabelText("Create password"), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^Username \/ display name/), { target: { value: "Employee Chosen Name" } });
+    fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
 
@@ -89,7 +89,7 @@ describe("SetPassword onboarding", () => {
     renderSetPassword("/set-password?flow=recovery");
 
     expect(screen.queryByLabelText("Username / display name")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "fieldbuddy-2027" } });
+    fireEvent.change(screen.getByLabelText(/^New password/), { target: { value: "fieldbuddy-2027" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2027" } });
     fireEvent.click(screen.getByRole("button", { name: "Save password and continue" }));
 
@@ -103,8 +103,8 @@ describe("SetPassword onboarding", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText("Username / display name"), { target: { value: "Employee Name" } });
-    fireEvent.change(screen.getByLabelText("Create password"), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^Username \/ display name/), { target: { value: "Employee Name" } });
+    fireEvent.change(screen.getByLabelText(/^Create password/), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Activate account" }));
 
