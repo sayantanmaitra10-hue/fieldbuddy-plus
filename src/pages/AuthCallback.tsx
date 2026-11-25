@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { getAuthCallbackError, getAuthFlowFromLocation } from "@/lib/auth-onboarding";
+import { getAuthCallbackError, getAuthFlowFromLocation, hasAuthCallbackCredential } from "@/lib/auth-onboarding";
 
 export default function AuthCallback() {
   const location = useLocation();
@@ -15,6 +15,14 @@ export default function AuthCallback() {
 
     if (callbackError) {
       setError(callbackError);
+      return () => { active = false; };
+    }
+
+    if (
+      (flow === "invite" || flow === "recovery" || flow === "signup") &&
+      !hasAuthCallbackCredential(location)
+    ) {
+      setError("This link is missing its secure sign-in credential. Open the newest invitation or password-reset email link again. If it still fails, ask your administrator for a fresh link.");
       return () => { active = false; };
     }
 
