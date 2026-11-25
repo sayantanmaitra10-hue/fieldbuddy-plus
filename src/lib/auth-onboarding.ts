@@ -39,3 +39,16 @@ export function validatePasswordPair(password: string, confirmation: string): st
   if (password !== confirmation) return "The passwords do not match.";
   return null;
 }
+
+
+/** True only when the return URL contains a one-time Supabase auth credential. */
+export function hasAuthCallbackCredential(location: Pick<Location, "search" | "hash">): boolean {
+  const search = new URLSearchParams(location.search.startsWith("?") ? location.search.slice(1) : location.search);
+  const fragment = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : location.hash);
+  return Boolean(
+    search.get("code") ||
+    search.get("access_token") ||
+    fragment.get("access_token") ||
+    fragment.get("token_hash")
+  );
+}
