@@ -108,7 +108,7 @@ const Admin = () => {
       });
       toast({
         title: "Invitation sent",
-        description: `An invitation has been sent to ${normalizedEmail}.`,
+        description: `An invitation has been sent to ${normalizedEmail}. The employee will confirm their name and create a password after verifying the email.`,
       });
       setDisplayName("");
       setEmail("");
@@ -134,12 +134,14 @@ const Admin = () => {
             <MailPlus className="size-5 text-primary" />
             <div>
               <h2 className="font-display text-lg font-semibold">Invite a team member</h2>
-              <p className="text-xs text-muted-foreground">They will receive an email invitation to join this organization.</p>
+              <p className="text-xs text-muted-foreground">
+                The employee will verify their email, confirm their name, and create their own password.
+              </p>
             </div>
           </div>
           <form onSubmit={handleInvite} className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label htmlFor="invite-name">Full name (optional)</Label>
+              <Label htmlFor="invite-name">Suggested name (employee can change it)</Label>
               <Input id="invite-name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Employee name" maxLength={120} />
             </div>
             <div className="grid gap-1.5">
@@ -165,7 +167,7 @@ const Admin = () => {
             </div>
           </form>
           <p className="mt-3 text-xs text-muted-foreground">
-            Organization administrator privileges cannot be granted through this invitation form.
+            The employee's email address remains their sign-in ID. Organization administrator privileges cannot be granted through this invitation form.
           </p>
         </section>
 
@@ -255,8 +257,7 @@ const Admin = () => {
                       <Badge variant={statusVariant(member.member_status)}>{statusLabels[member.member_status]}</Badge>
                     </td>
                   </tr>
-                ))
-                }
+                ))}
               </tbody>
             </table>
           </div>
