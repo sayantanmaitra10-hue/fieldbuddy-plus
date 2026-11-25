@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthCallbackUrl } from "@/lib/auth-onboarding";
 
 export type OrganizationRole = "org_admin" | "hr_admin" | "manager" | "supervisor" | "field_employee";
 
@@ -31,6 +32,8 @@ interface AuthContextValue {
   activeMembership: OrganizationMembership | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshMemberships: () => Promise<void>;
   setActiveOrganization: (organizationId: string) => void;
@@ -42,9 +45,6 @@ const ACTIVE_ORG_KEY = "fieldbuddy:active-organization";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  // Track the authenticated user separately from token refreshes. Supabase can
-  // emit TOKEN_REFRESHED when a background tab becomes active again; that must
-  // not blank the protected workspace for a user whose identity has not changed.
   const authUserIdRef = useRef<string | null>(null);
   const [membershipsLoading, setMembershipsLoading] = useState(false);
   const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
@@ -99,19 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUserId = nextSession?.user.id ?? null;
       const identityChanged = authUserIdRef.current !== nextUserId;
       authUserIdRef.current = nextUserId;
-
       setSession(nextSession);
 
       if (!nextSession) {
-        // A sign-out must immediately clear tenant membership state.
         setMemberships([]);
         setMembershipsLoading(false);
       } else if (identityChanged) {
-        // Initial session restoration or a genuine account switch requires a
-        // fresh membership lookup. Same-user token refreshes do not.
         setMembershipsLoading(true);
       }
-
       setLoading(false);
     });
 
@@ -146,6 +141,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: { data: { display_name: displayName.trim() } },
     });
+    if (error) throw error;
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const redirectTo = getAuthCallbackUrl(window.location.origin, "recovery");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo,
+    });
+    if (error) throw error;
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
   }, []);
 
@@ -185,12 +193,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     activeMembership,
     signIn,
     signUp,
+    requestPasswordReset,
+    updatePassword,
     signOut,
     refreshMemberships,
     setActiveOrganization,
   }), [
     session, loading, membershipsLoading, memberships, activeMembership,
-    signIn, signUp, signOut, refreshMemberships, setActiveOrganization,
+    signIn, signUp, requestPasswordReset, updatePassword, signOut,
+    refreshMemberships, setActiveOrganization,
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
