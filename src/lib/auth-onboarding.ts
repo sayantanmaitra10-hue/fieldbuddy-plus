@@ -23,7 +23,7 @@ export function getAuthCallbackError(search: string, hash: string): string | nul
   const code = query.get("error_code") ?? fragment.get("error_code");
   const error = query.get("error") ?? fragment.get("error");
 
-  if (!description && !error) return null;
+  if (!description && !code && !error) return null;
   const details = [description, code ? "code: " + code : null, error ? "error: " + error : null].filter(Boolean);
   return details.join(" — ");
 }
