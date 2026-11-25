@@ -46,10 +46,21 @@ describe("AuthCallback", () => {
     expect(mocks.getSession).not.toHaveBeenCalled();
   });
 
-  it("does not send a user to password setup when the callback has no session", async () => {
+  it("does not send a user to password setup when a credential fails to establish a session", async () => {
     mocks.getSession.mockResolvedValue({ data: { session: null }, error: null });
 
-    renderCallback("/auth/callback?flow=recovery");
+    renderCallback("/auth/callback?flow=recovery#access_token=expired-token");
     expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
+  });
+
+  it("does not reuse an existing signed-in session for a callback with no one-time credential", async () => {
+    mocks.getSession.mockResolvedValue({
+      data: { session: { access_token: "manager-token", user: { id: "manager-1" } } },
+      error: null,
+    });
+
+    renderCallback("/auth/callback?flow=invite");
+    expect(await screen.findByRole("alert")).toHaveTextContent("missing its secure sign-in credential");
+    expect(mocks.getSession).not.toHaveBeenCalled();
   });
 });
