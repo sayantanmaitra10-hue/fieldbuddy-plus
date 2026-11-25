@@ -86,7 +86,9 @@ const TasksPage = () => {
       if (canManage) {
         const team = await getOrganizationAssignees(organizationId);
         setAssignees(team);
-        if (!assignedTo && team.length > 0) setAssignedTo(team[0].user_id);
+        setAssignedTo((current) => team.some((person) => person.user_id === current)
+          ? current
+          : team[0]?.user_id ?? "");
       }
     } catch (error) {
       toast({
@@ -98,7 +100,7 @@ const TasksPage = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [organizationId, canManage, assignedTo, toast]);
+  }, [organizationId, canManage, toast]);
 
   useEffect(() => {
     void refresh();
