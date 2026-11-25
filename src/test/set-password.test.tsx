@@ -39,7 +39,7 @@ describe("SetPassword onboarding", () => {
   it("rejects mismatched password confirmation", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/new password/i), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^New password/i), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "different-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Save password and continue" }));
 
@@ -50,7 +50,7 @@ describe("SetPassword onboarding", () => {
   it("saves a valid password, refreshes membership, and opens the workspace", async () => {
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/new password/i), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^New password/i), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Save password and continue" }));
 
@@ -66,7 +66,7 @@ describe("SetPassword onboarding", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     renderSetPassword();
 
-    fireEvent.change(screen.getByLabelText(/new password/i), { target: { value: "fieldbuddy-2026" } });
+    fireEvent.change(screen.getByLabelText(/^New password/i), { target: { value: "fieldbuddy-2026" } });
     fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "fieldbuddy-2026" } });
     fireEvent.click(screen.getByRole("button", { name: "Save password and continue" }));
 
