@@ -1,13 +1,17 @@
 import { FormEvent, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { validatePasswordPair } from "@/lib/auth-onboarding";
+import { validateDisplayName, validatePasswordPair } from "@/lib/auth-onboarding";
 
 export default function SetPassword() {
   const { user, loading, updatePassword, refreshMemberships } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const flow = new URLSearchParams(location.search).get("flow") === "recovery" ? "recovery" : "invite";
+  const suggestedName = typeof user?.user_metadata?.display_name === "string"
+    ? user.user_metadata.display_name
+    : "";
+  const [displayName, setDisplayName] = useState(suggestedName);
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,15 +21,21 @@ export default function SetPassword() {
     event.preventDefault();
     setError("");
 
-    const validationError = validatePasswordPair(password, confirmation);
-    if (validationError) {
-      setError(validationError);
+    const nameError = flow === "invite" ? validateDisplayName(displayName) : null;
+    if (nameError) {
+      setError(nameError);
+      return;
+    }
+
+    const passwordError = validatePasswordPair(password, confirmation);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
     setBusy(true);
     try {
-      await updatePassword(password);
+      await updatePassword(password, flow === "invite" ? displayName.trim() : undefined);
       let membershipRefreshFailed = false;
       try {
         await refreshMemberships();
@@ -35,7 +45,7 @@ export default function SetPassword() {
       }
       navigate(membershipRefreshFailed ? "/access-pending" : "/app", { replace: true });
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Your password could not be saved. Please try again.");
+      setError(cause instanceof Error ? cause.message : "Your account details could not be saved. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -69,18 +79,38 @@ export default function SetPassword() {
       <section className="w-full max-w-md rounded-2xl border bg-card p-7 shadow-sm">
         <Link to="/" className="text-sm font-semibold text-primary">FieldBuddy Plus</Link>
         <h1 className="mt-6 text-2xl font-semibold tracking-tight">
-          {flow === "recovery" ? "Choose a new password" : "Set up your password"}
+          {flow === "recovery" ? "Choose a new password" : "Complete your employee account"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {flow === "recovery"
             ? "Choose a new password for your FieldBuddy account."
-            : "Welcome to FieldBuddy. Set a password so you can sign in again on any device."}
+            : "Your email has been verified. Choose the name your team will see and create your own password."}
         </p>
-        <p className="mt-3 text-xs text-muted-foreground">Account: {user.email}</p>
+        <p className="mt-3 text-xs text-muted-foreground">Login email: {user.email}</p>
 
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+          {flow === "invite" && (
+            <label className="block space-y-1.5 text-sm font-medium">
+              Username / display name
+              <input
+                required
+                type="text"
+                minLength={2}
+                maxLength={120}
+                autoComplete="name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Enter the name your team will see"
+                className="w-full rounded-lg border bg-background px-3 py-2.5 font-normal outline-none focus:ring-2 focus:ring-primary"
+              />
+              <span className="block text-xs font-normal text-muted-foreground">
+                This is your name in FieldBuddy. You will sign in later using your email address and password.
+              </span>
+            </label>
+          )}
+
           <label className="block space-y-1.5 text-sm font-medium">
-            New password
+            {flow === "recovery" ? "New password" : "Create password"}
             <input
               required
               type="password"
@@ -93,7 +123,7 @@ export default function SetPassword() {
             <span className="block text-xs font-normal text-muted-foreground">Use at least 8 characters.</span>
           </label>
           <label className="block space-y-1.5 text-sm font-medium">
-            Confirm new password
+            Confirm password
             <input
               required
               type="password"
@@ -112,7 +142,9 @@ export default function SetPassword() {
             disabled={busy}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {busy ? "Saving password…" : "Save password and continue"}
+            {busy
+              ? "Saving account details…"
+              : flow === "recovery" ? "Save password and continue" : "Activate account"}
           </button>
         </form>
       </section>
