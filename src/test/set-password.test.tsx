@@ -6,12 +6,14 @@ const mocks = vi.hoisted(() => ({
   updatePassword: vi.fn(),
   refreshMemberships: vi.fn(),
   userMetadata: { display_name: "Name entered by admin" },
+  user: { email: "employee@example.com", user_metadata: { display_name: "Name entered by admin" } } as null | { email: string; user_metadata: { display_name: string } },
+  loading: false,
 }));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
-    user: { email: "employee@example.com", user_metadata: mocks.userMetadata },
-    loading: false,
+    user: mocks.user,
+    loading: mocks.loading,
     updatePassword: mocks.updatePassword,
     refreshMemberships: mocks.refreshMemberships,
   }),
@@ -19,16 +21,20 @@ vi.mock("@/context/AuthContext", () => ({
 
 import SetPassword from "@/pages/SetPassword";
 
-function renderSetPassword(path = "/set-password?flow=invite") {
-  return render(
+function setPasswordTree(path = "/set-password?flow=invite") {
+  return (
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/set-password" element={<SetPassword />} />
         <Route path="/app" element={<p>Employee workspace test route</p>} />
         <Route path="/access-pending" element={<p>Access pending test route</p>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+}
+
+function renderSetPassword(path = "/set-password?flow=invite") {
+  return render(setPasswordTree(path));
 }
 
 describe("SetPassword onboarding", () => {
@@ -36,14 +42,32 @@ describe("SetPassword onboarding", () => {
     mocks.updatePassword.mockReset().mockResolvedValue(undefined);
     mocks.refreshMemberships.mockReset().mockResolvedValue(undefined);
     mocks.userMetadata.display_name = "Name entered by admin";
+    mocks.user = { email: "employee@example.com", user_metadata: mocks.userMetadata };
+    mocks.loading = false;
   });
 
   it("shows the verified email and pre-fills the suggested employee name", () => {
     renderSetPassword();
 
     expect(screen.getByText("Login email: employee@example.com")).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Username \/ display name/)).toHaveValue("Name entered by admin");
+    expect(screen.getByLabelText(/^Employee name \(shown to your team\)/)).toHaveValue("Name entered by admin");
     expect(screen.getByRole("button", { name: "Activate account" })).toBeInTheDocument();
+  });
+
+  it("prefills the suggested name when the invitation session loads after the page mounts", async () => {
+    mocks.loading = true;
+    mocks.user = null;
+    const view = renderSetPassword();
+
+    expect(screen.getByText("Checking your secure session…")).toBeInTheDocument();
+
+    mocks.user = { email: "employee@example.com", user_metadata: { display_name: "Loaded from invitation" } };
+    mocks.loading = false;
+    view.rerender(setPasswordTree());
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^Employee name \(shown to your team\)/)).toHaveValue("Loaded from invitation");
+    });
   });
 
   it("rejects mismatched password confirmation", async () => {
@@ -88,7 +112,7 @@ describe("SetPassword onboarding", () => {
   it("keeps password recovery separate and does not ask the user to change their name", async () => {
     renderSetPassword("/set-password?flow=recovery");
 
-    expect(screen.queryByLabelText("Username / display name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Employee name \(shown to your team\)/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/^New password/), { target: { value: "fieldbuddy-2027" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "fieldbuddy-2027" } });
     fireEvent.click(screen.getByRole("button", { name: "Save password and continue" }));
