@@ -129,8 +129,8 @@ Deno.serve(async (request) => {
       code: existingAccount ? "USER_ALREADY_EXISTS" : "INVITE_FAILED",
       error: existingAccount
         ? "This email already has a FieldBuddy authentication account. The employee must use that account, or an administrator must follow the existing-account provisioning process."
-        : "The invitation could not be sent. Verify the email address and email-provider configuration, then try again.",
-    }, 409);
+        : "The invitation service could not send the email. Verify the Supabase Auth email provider, invitation template, and rate limits, then try again.",
+    }, existingAccount ? 409 : 502);
   }
 
   const { data: membership, error: insertError } = await adminClient
