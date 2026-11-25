@@ -36,7 +36,7 @@ describe("AuthCallback", () => {
       error: null,
     });
 
-    renderCallback("/auth/callback?flow=invite");
+    renderCallback("/auth/callback?flow=invite&code=pkce-code");
     expect(await screen.findByText("Password setup destination")).toBeInTheDocument();
   });
 
