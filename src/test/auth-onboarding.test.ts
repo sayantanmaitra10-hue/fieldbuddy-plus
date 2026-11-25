@@ -4,6 +4,7 @@ import {
   getAuthCallbackUrl,
   getAuthFlowFromLocation,
   hasAuthCallbackCredential,
+  validateDisplayName,
   validatePasswordPair,
 } from "@/lib/auth-onboarding";
 
@@ -46,6 +47,24 @@ describe("authentication callback routing", () => {
 
   it("surfaces an error code even when the provider omits a description", () => {
     expect(getAuthCallbackError("?error_code=otp_expired", "")).toContain("otp_expired");
+  });
+});
+
+describe("employee profile name validation", () => {
+  it("rejects an empty display name", () => {
+    expect(validateDisplayName("   ")).toContain("Enter the name");
+  });
+
+  it("rejects a one-character display name", () => {
+    expect(validateDisplayName("A")).toContain("at least 2 characters");
+  });
+
+  it("accepts a trimmed employee display name", () => {
+    expect(validateDisplayName("  Ananya Sen  ")).toBeNull();
+  });
+
+  it("rejects a display name longer than 120 characters", () => {
+    expect(validateDisplayName("A".repeat(121))).toContain("too long");
   });
 });
 
