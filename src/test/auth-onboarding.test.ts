@@ -36,6 +36,10 @@ describe("authentication callback routing", () => {
     expect(getAuthCallbackError("?error=access_denied&error_description=Email+link+expired", ""))
       .toContain("Email link expired");
   });
+
+  it("surfaces an error code even when the provider omits a description", () => {
+    expect(getAuthCallbackError("?error_code=otp_expired", "")).toContain("otp_expired");
+  });
 });
 
 describe("new password validation", () => {
