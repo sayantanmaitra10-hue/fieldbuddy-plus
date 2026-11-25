@@ -9,7 +9,8 @@ This is a manual integration test plan. Passing GitHub CI does not replace these
 ## Before sending an invitation
 
 - [ ] Confirm the frontend being tested is deployed from the reviewed authentication branch, not the older demo-only `main` frontend.
-- [ ] Confirm the frontend build points to Supabase project `jrmwkdputphprscfomxc`.
+- [ ] Confirm the frontend build has both `VITE_SUPABASE_PROJECT_ID=jrmwkdputphprscfomxc` and `VITE_SUPABASE_URL=https://jrmwkdputphprscfomxc.supabase.co`; do not use the older `main` branch environment target.
+- [ ] Open the deployed app's landing page and `/login` in a clean Incognito window. Both must be publicly reachable without Lovable/editor sign-in or a project-access request. If the browser asks for Lovable project access, fix the hosting/publication access policy or use a public staging host before employee testing; Supabase authentication cannot bypass a website-level access gate.
 - [ ] Confirm Supabase Authentication → URL Configuration allows the deployed origin's `/auth/callback` path.
 - [ ] Confirm the Edge Function secret `APP_ORIGIN` is the exact deployed app origin.
 - [ ] Confirm `INVITE_REDIRECT_URL` points to the same app origin. The current invite function normalizes it to `/auth/callback?flow=invite`.
