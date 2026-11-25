@@ -49,7 +49,7 @@ describe("Organization Admin", () => {
   it("normalizes the invitation email and refreshes the directory", async () => {
     renderAdmin();
     await screen.findByText("Ananya Sen");
-    fireEvent.change(screen.getByLabelText("Full name (optional)"), { target: { value: " Test Employee " } });
+    fireEvent.change(screen.getByLabelText("Suggested name (employee can change it)"), { target: { value: " Test Employee " } });
     fireEvent.change(screen.getByLabelText("Work email"), { target: { value: "TEST@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send invitation" }));
     await waitFor(() => expect(mocks.invite).toHaveBeenCalledWith({
